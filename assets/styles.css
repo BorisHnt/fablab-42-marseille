@@ -32,9 +32,7 @@ body {
   min-width: 320px;
   font-family: "Manrope", sans-serif;
   color: var(--ink);
-  background:
-    linear-gradient(180deg, rgba(234, 242, 246, 0.35) 0, rgba(234, 242, 246, 0.35) 10rem, transparent 10rem),
-    var(--background);
+  background: var(--background);
 }
 
 a {
