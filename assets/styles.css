@@ -249,11 +249,12 @@ button {
   width: fit-content;
   max-width: 100%;
   align-self: start;
+  margin-top: 0.2rem;
 }
 
 .feature-list {
   align-content: start;
-  gap: 0.9rem;
+  gap: 1rem;
   min-width: 0;
 }
 
@@ -359,6 +360,10 @@ p {
   gap: 0.75rem;
 }
 
+.section-action {
+  margin-top: 0.25rem;
+}
+
 .meta-pill,
 .tag,
 .subtle-badge,
@@ -422,7 +427,7 @@ p {
 .detail-grid,
 .metrics-grid {
   display: grid;
-  gap: 1rem;
+  gap: 1.1rem;
 }
 
 .hero-panel-header,
@@ -492,7 +497,7 @@ p {
   grid-template-columns: auto 1fr;
   align-items: start;
   gap: 1rem;
-  padding: 1.15rem;
+  padding: 1.2rem;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(31, 35, 37, 0.06);
   background: var(--white);
@@ -697,12 +702,13 @@ tr:last-child td {
   }
 
   .page-flow {
-    gap: 2rem;
+    gap: 2.15rem;
   }
 
   .hero-card {
     grid-template-columns: minmax(0, 1.42fr) minmax(20rem, 0.9fr);
     align-items: stretch;
+    gap: 1.7rem;
     padding: 1.8rem;
   }
 
@@ -713,7 +719,7 @@ tr:last-child td {
   }
 
   .hero-visual {
-    gap: 1.1rem;
+    gap: 1.25rem;
   }
 
   .hero-panel-primary {
@@ -730,20 +736,26 @@ tr:last-child td {
   .feature-band,
   .registration-layout {
     grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+    gap: 2rem;
   }
 
   .feature-band {
-    grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.96fr);
     align-items: start;
-    gap: 1.6rem;
+    gap: 2.4rem;
   }
 
   .feature-copy {
-    padding-right: 0.5rem;
+    padding-right: 1.2rem;
+  }
+
+  .feature-copy .section-heading p {
+    max-width: 32rem;
   }
 
   .feature-list {
-    padding-top: 0.1rem;
+    gap: 1.05rem;
+    padding-top: 0.45rem;
   }
 
   .section-card,
@@ -767,6 +779,12 @@ tr:last-child td {
 
   .metrics-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .card-grid,
+  .detail-grid,
+  .metrics-grid {
+    gap: 1.3rem;
   }
 
   .three-columns .info-card:nth-child(2) {
