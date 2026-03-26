@@ -26,13 +26,16 @@ const adminState = {
   inventory: [],
   neededEquipment: [],
   events: [],
+  users: [],
   modules: [],
   sessionModules: [],
   sessions: [],
   registrations: [],
+  moduleCompletions: [],
 };
 
 let adminDom = null;
+let adminSessionUser = null;
 
 const adminFormLabels = {
   inventory: {
@@ -65,6 +68,12 @@ const adminFormLabels = {
     createButton: "Créer la session",
     editButton: "Enregistrer les changements",
   },
+  completion: {
+    createTitle: "Attribuer un module validé",
+    editTitle: "Modifier une validation",
+    createButton: "Attribuer la validation",
+    editButton: "Enregistrer les changements",
+  },
 };
 
 const registrationStatusOptions = [
@@ -72,6 +81,13 @@ const registrationStatusOptions = [
   "confirmed",
   "waitlisted",
   "cancelled",
+];
+
+const moduleCompletionStatusOptions = [
+  "completed",
+  "attended",
+  "partial",
+  "failed",
 ];
 
 const navItems = [
@@ -813,6 +829,21 @@ function renderAdminPage(userEmail = "") {
         formMarkup: renderEventsAdminForm(),
       })}
 
+      ${renderAdminListSection({
+        sectionId: "users-admin",
+        eyebrow: "Utilisateurs",
+        title: "Utilisateurs du site",
+        text: "Consultez les comptes inscrits, leurs rôles et leurs identifiants utiles au suivi pédagogique.",
+        listTitle: "Comptes utilisateurs",
+        loadingText: "Chargement des utilisateurs...",
+        headerMarkup: `
+          <label class="admin-search-field" for="users-admin-search">
+            Rechercher
+            <input id="users-admin-search" type="search" placeholder="Nom, email, login 42" />
+          </label>
+        `,
+      })}
+
       ${renderAdminCrudSection({
         sectionId: "modules-admin",
         eyebrow: "Modules",
@@ -823,6 +854,17 @@ function renderAdminPage(userEmail = "") {
         loadingText: "Chargement des modules...",
         formMarkup: renderModulesAdminForm(),
         sectionClassName: "section-card-soft",
+      })}
+
+      ${renderAdminCrudSection({
+        sectionId: "completions-admin",
+        eyebrow: "Validations",
+        title: "Modules validés",
+        text: "Attribuez manuellement des validations de modules, rattachez-les à une session si besoin, puis suivez proprement leur historique.",
+        formTitle: "Attribuer un module validé",
+        listTitle: "Validations enregistrées",
+        loadingText: "Chargement des validations...",
+        formMarkup: renderModuleCompletionsAdminForm(),
       })}
 
       ${renderAdminCrudSection({
@@ -891,6 +933,7 @@ function renderAdminListSection({
   text,
   listTitle,
   loadingText,
+  headerMarkup = "",
 }) {
   return `
     <section class="section-card animate-rise">
@@ -900,6 +943,7 @@ function renderAdminListSection({
           <h3>${listTitle}</h3>
           <span class="subtle-badge" id="${sectionId}-count">Chargement...</span>
         </div>
+        ${headerMarkup}
         <p id="${sectionId}-message" class="admin-feedback" aria-live="polite"></p>
         <div id="${sectionId}-list">${renderAdminListLoadingState(loadingText)}</div>
       </article>
@@ -1173,6 +1217,58 @@ function renderSessionsAdminForm() {
           id="sessions-admin-cancel-edit"
           type="button"
         >
+          Annuler
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderModuleCompletionsAdminForm() {
+  return `
+    <form class="signup-form admin-form" id="completions-admin-form">
+      <input id="completions-admin-id" name="id" type="hidden" />
+      <div class="admin-field-grid">
+        <label for="completions-admin-user-id">
+          Utilisateur
+          <select id="completions-admin-user-id" name="user_id" required>
+            <option value="">Chargement des utilisateurs...</option>
+          </select>
+        </label>
+        <label for="completions-admin-module-id">
+          Module
+          <select id="completions-admin-module-id" name="module_id" required>
+            <option value="">Chargement des modules...</option>
+          </select>
+        </label>
+      </div>
+      <div class="admin-field-grid">
+        <label for="completions-admin-session-id">
+          Session liée
+          <select id="completions-admin-session-id" name="session_id">
+            <option value="">Aucune session</option>
+          </select>
+        </label>
+        <label for="completions-admin-date">
+          Date de validation
+          <input id="completions-admin-date" name="completion_date" type="date" required />
+        </label>
+      </div>
+      <label for="completions-admin-status">
+        Statut
+        <select id="completions-admin-status" name="status" required>
+          ${renderModuleCompletionStatusOptions("completed")}
+        </select>
+      </label>
+      <label for="completions-admin-notes">
+        Notes
+        <textarea id="completions-admin-notes" name="notes" rows="4"></textarea>
+      </label>
+      <div class="admin-form-actions">
+        <button class="button button-primary" id="completions-admin-submit" type="submit">
+          Attribuer la validation
+        </button>
+        <button class="button button-ghost is-hidden" id="completions-admin-cancel-edit" type="button">
           Annuler
         </button>
       </div>
@@ -1475,6 +1571,7 @@ function normalizeEvent(event) {
     title: event.title,
     category: event.category ?? "Événement",
     date: event.date ?? event.event_date,
+    startTime: startTime ?? "",
     description: event.short_description ?? event.description ?? "",
     meta,
   };
@@ -1572,34 +1669,10 @@ function renderPublicSessionCta(session, { registrationIndex = new Map(), button
 function renderHomeAgendaCards(eventsList, sessionsList, registrationIndex = new Map()) {
   const normalizedEvents = (eventsList ?? []).map(normalizeEvent);
   const normalizedSessions = (sessionsList ?? []).map(normalizeSession);
-  const cards = [];
-
-  normalizedEvents.slice(0, 2).forEach((eventItem) => {
-    cards.push({ kind: "event", payload: eventItem });
-  });
-
-  normalizedSessions.slice(0, 1).forEach((sessionItem) => {
-    cards.push({ kind: "session", payload: sessionItem });
-  });
-
-  let eventIndex = 2;
-  let sessionIndex = 1;
-
-  while (cards.length < 3 && (eventIndex < normalizedEvents.length || sessionIndex < normalizedSessions.length)) {
-    if (eventIndex < normalizedEvents.length) {
-      cards.push({ kind: "event", payload: normalizedEvents[eventIndex] });
-      eventIndex += 1;
-
-      if (cards.length >= 3) {
-        break;
-      }
-    }
-
-    if (sessionIndex < normalizedSessions.length) {
-      cards.push({ kind: "session", payload: normalizedSessions[sessionIndex] });
-      sessionIndex += 1;
-    }
-  }
+  const cards = [
+    ...normalizedEvents.map((eventItem) => ({ kind: "event", payload: eventItem })),
+    ...normalizedSessions.map((sessionItem) => ({ kind: "session", payload: sessionItem })),
+  ].sort((left, right) => compareAgendaItems(left.payload, right.payload));
 
   if (!cards.length) {
     return "";
@@ -1613,6 +1686,55 @@ function renderHomeAgendaCards(eventsList, sessionsList, registrationIndex = new
         : renderNormalizedEventCard(item.payload),
     )
     .join("");
+}
+
+function compareAgendaItems(left, right) {
+  const leftTimestamp = getAgendaItemTimestamp(left);
+  const rightTimestamp = getAgendaItemTimestamp(right);
+
+  if (leftTimestamp !== rightTimestamp) {
+    return leftTimestamp - rightTimestamp;
+  }
+
+  return String(left.title ?? "").localeCompare(String(right.title ?? ""), "fr");
+}
+
+function getAgendaItemTimestamp(item) {
+  const dateValue = String(item?.date ?? "").trim();
+  const timeValue = extractAgendaItemStartTime(item);
+
+  if (!dateValue) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const isoDateTime = `${dateValue}T${timeValue || "00:00"}:00`;
+  const parsed = new Date(isoDateTime);
+
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.getTime();
+  }
+
+  const dateMatch = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!dateMatch) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const [, year, month, day] = dateMatch;
+  return Date.UTC(Number(year), Number(month) - 1, Number(day), ...(timeValue ? timeValue.split(":").map(Number) : [0, 0]));
+}
+
+function extractAgendaItemStartTime(item) {
+  if (item?.startTime) {
+    return String(item.startTime).slice(0, 5);
+  }
+
+  if (item?.timeRange) {
+    const [startTime = ""] = String(item.timeRange).split(" - ");
+    return startTime.slice(0, 5);
+  }
+
+  return "";
 }
 
 function renderNormalizedEventCard(normalizedEvent) {
@@ -1667,6 +1789,7 @@ function normalizeSession(session) {
       `${session.title ?? "session"}-${session.session_date ?? session.date ?? "na"}`,
     title: session.title ?? "Session",
     date: session.session_date ?? session.date,
+    startTime: startTime ?? "",
     timeRange: formatTimeRange(startTime, endTime),
     level: session.level ?? "Tous niveaux",
     seatsRemaining,
@@ -1834,6 +1957,12 @@ function cacheAdminDom() {
       submit: document.getElementById("events-admin-submit"),
       cancel: document.getElementById("events-admin-cancel-edit"),
     },
+    users: {
+      list: document.getElementById("users-admin-list"),
+      count: document.getElementById("users-admin-count"),
+      message: document.getElementById("users-admin-message"),
+      search: document.getElementById("users-admin-search"),
+    },
     modules: {
       form: document.getElementById("modules-admin-form"),
       formTitle: document.getElementById("modules-admin-form-title"),
@@ -1870,6 +1999,22 @@ function cacheAdminDom() {
       submit: document.getElementById("sessions-admin-submit"),
       cancel: document.getElementById("sessions-admin-cancel-edit"),
     },
+    completions: {
+      form: document.getElementById("completions-admin-form"),
+      formTitle: document.getElementById("completions-admin-form-title"),
+      formMessage: document.getElementById("completions-admin-form-message"),
+      list: document.getElementById("completions-admin-list"),
+      count: document.getElementById("completions-admin-count"),
+      id: document.getElementById("completions-admin-id"),
+      userId: document.getElementById("completions-admin-user-id"),
+      moduleId: document.getElementById("completions-admin-module-id"),
+      sessionId: document.getElementById("completions-admin-session-id"),
+      completionDate: document.getElementById("completions-admin-date"),
+      status: document.getElementById("completions-admin-status"),
+      notes: document.getElementById("completions-admin-notes"),
+      submit: document.getElementById("completions-admin-submit"),
+      cancel: document.getElementById("completions-admin-cancel-edit"),
+    },
     registrations: {
       list: document.getElementById("registrations-admin-list"),
       count: document.getElementById("registrations-admin-count"),
@@ -1888,8 +2033,10 @@ function bindAdminDashboardInteractions() {
   bindInventoryAdminControls();
   bindNeededEquipmentAdminControls();
   bindEventsAdminControls();
+  bindUsersAdminControls();
   bindModulesAdminControls();
   bindSessionsAdminControls();
+  bindModuleCompletionsAdminControls();
   bindRegistrationsAdminControls();
 }
 
@@ -1903,10 +2050,26 @@ async function initializeAdminDashboard() {
     refreshInventorySection(),
     refreshNeededEquipmentSection(),
     refreshEventsAdminSection(),
+    refreshUsersAdminSection(),
     refreshModulesAdminCollection(),
     refreshSessionsAdminSection(),
+    refreshModuleCompletionsAdminSection(),
     refreshRegistrationsAdminSection(),
   ]);
+
+  resetModuleCompletionForm({ keepMessage: false });
+}
+
+function bindUsersAdminControls() {
+  const section = adminDom?.users;
+
+  if (!section?.search) {
+    return;
+  }
+
+  section.search.addEventListener("input", () => {
+    renderUsersAdminSectionList();
+  });
 }
 
 function bindInventoryAdminControls() {
@@ -2100,6 +2263,38 @@ function bindRegistrationsAdminControls() {
   });
 }
 
+function bindModuleCompletionsAdminControls() {
+  const section = adminDom?.completions;
+
+  if (!section?.form || !section.list) {
+    return;
+  }
+
+  section.form.addEventListener("submit", handleModuleCompletionFormSubmit);
+  section.cancel?.addEventListener("click", () => resetModuleCompletionForm());
+
+  section.list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action][data-id]");
+
+    if (!button) {
+      return;
+    }
+
+    const recordId = button.dataset.id;
+
+    if (button.dataset.action === "edit") {
+      populateModuleCompletionForm(recordId);
+      return;
+    }
+
+    if (button.dataset.action === "delete") {
+      await deleteModuleCompletionRecord(recordId, button);
+    }
+  });
+
+  updateAdminFormMode("completions-admin", adminFormLabels.completion);
+}
+
 function getRegistrationStatusSelectNode(recordId, button) {
   const scopedNode = button
     ?.closest("[data-registration-entry]")
@@ -2230,6 +2425,42 @@ async function refreshEventsAdminSection() {
   renderAdminMetrics();
 }
 
+async function refreshUsersAdminSection() {
+  const section = adminDom?.users;
+
+  if (!section?.list || !section.count) {
+    return;
+  }
+
+  section.count.textContent = "Chargement...";
+  section.list.innerHTML = renderAdminListLoadingState("Récupération des utilisateurs...");
+
+  const { data, error } = await supabase
+    .from("admin_users_overview")
+    .select("*")
+    .order("display_name", { ascending: true })
+    .order("email", { ascending: true });
+
+  if (error) {
+    adminState.users = [];
+    section.count.textContent = "Erreur";
+    section.list.innerHTML = renderAdminErrorState(
+      "Impossible de charger les utilisateurs pour le moment.",
+    );
+    syncModuleCompletionFormOptions();
+    return;
+  }
+
+  adminState.users = (data ?? []).map(normalizeAdminUserRecord);
+  section.count.textContent = formatAdminCount(
+    adminState.users.length,
+    "utilisateur",
+    "utilisateurs",
+  );
+  renderUsersAdminSectionList();
+  syncModuleCompletionFormOptions();
+}
+
 async function refreshModulesAdminCollection(selectedIds = null) {
   const section = adminDom?.sessions;
   const modulesSection = adminDom?.modules;
@@ -2292,6 +2523,8 @@ async function refreshModulesAdminCollection(selectedIds = null) {
     modulesSection.list.innerHTML = renderModulesAdminList(adminState.modules);
   }
 
+  syncModuleCompletionFormOptions();
+
   return true;
 }
 
@@ -2339,6 +2572,7 @@ async function refreshSessionsAdminSection() {
     "sessions",
   );
   section.list.innerHTML = renderSessionsAdminList(adminState.sessions);
+  syncModuleCompletionFormOptions();
   renderAdminMetrics();
 }
 
@@ -2378,6 +2612,77 @@ async function refreshRegistrationsAdminSection() {
     adminDom.sessions.list.innerHTML = renderSessionsAdminList(adminState.sessions);
   }
   renderAdminMetrics();
+}
+
+async function refreshModuleCompletionsAdminSection() {
+  const section = adminDom?.completions;
+
+  if (!section?.list || !section.count) {
+    return;
+  }
+
+  section.count.textContent = "Chargement...";
+  section.list.innerHTML = renderAdminListLoadingState("Récupération des validations...");
+
+  const { data, error } = await supabase
+    .from("module_completions_with_details")
+    .select("*")
+    .order("completion_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    adminState.moduleCompletions = [];
+    section.count.textContent = "Erreur";
+    section.list.innerHTML = renderAdminErrorState(
+      "Impossible de charger les validations de modules pour le moment.",
+    );
+    return;
+  }
+
+  adminState.moduleCompletions = (data ?? []).map(normalizeModuleCompletionRecord);
+  section.count.textContent = formatAdminCount(
+    adminState.moduleCompletions.length,
+    "validation",
+    "validations",
+  );
+  section.list.innerHTML = renderModuleCompletionsAdminList(adminState.moduleCompletions);
+}
+
+function renderUsersAdminSectionList() {
+  const section = adminDom?.users;
+
+  if (!section?.list || !section.count) {
+    return;
+  }
+
+  const searchValue = section.search?.value.trim().toLowerCase() ?? "";
+  const filteredUsers = !searchValue
+    ? adminState.users
+    : adminState.users.filter((item) => item.searchableText.includes(searchValue));
+
+  section.count.textContent = formatAdminCount(
+    filteredUsers.length,
+    "utilisateur",
+    "utilisateurs",
+  );
+  section.list.innerHTML = renderUsersAdminList(filteredUsers, searchValue);
+}
+
+function syncModuleCompletionFormOptions() {
+  const section = adminDom?.completions;
+
+  if (!section?.userId || !section?.moduleId || !section?.sessionId) {
+    return;
+  }
+
+  const selectedUserId = section.userId.value;
+  const selectedModuleId = section.moduleId.value;
+  const selectedSessionId = section.sessionId.value;
+
+  section.userId.innerHTML = renderModuleCompletionUserOptions(selectedUserId);
+  section.moduleId.innerHTML = renderModuleCompletionModuleOptions(selectedModuleId);
+  section.sessionId.innerHTML = renderModuleCompletionSessionOptions(selectedSessionId);
+  section.status.innerHTML = renderModuleCompletionStatusOptions(section.status.value || "completed");
 }
 
 function renderInventoryAdminList(items) {
@@ -2499,6 +2804,43 @@ function renderEventsAdminList(items) {
   );
 }
 
+function renderUsersAdminList(items, searchValue = "") {
+  if (!items.length) {
+    return renderAdminEmptyState(
+      searchValue
+        ? "Aucun utilisateur ne correspond à cette recherche."
+        : "Aucun utilisateur n’est enregistré pour le moment.",
+    );
+  }
+
+  return `
+    <div class="admin-user-grid">
+      ${items
+        .map(
+          (item) => `
+            <article class="info-card admin-user-card animate-rise">
+              <div class="card-topline">
+                <span class="eyebrow eyebrow-tight">Utilisateur</span>
+                <span class="subtle-badge">${escapeHtml(item.roleLabel)}</span>
+              </div>
+              <h3>${escapeHtml(item.displayLabel)}</h3>
+              <p>${escapeHtml(item.email)}</p>
+              <div class="admin-badge-list">
+                ${
+                  item.login42
+                    ? `<span class="tag">login42 · ${escapeHtml(item.login42)}</span>`
+                    : `<span class="tag">Sans login 42</span>`
+                }
+                <span class="subtle-badge">Créé le ${escapeHtml(item.createdDateLabel)}</span>
+              </div>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderModulesAdminList(items) {
   if (!items.length) {
     return renderAdminEmptyState("Aucun module n’est enregistré pour le moment.");
@@ -2577,6 +2919,66 @@ function renderSessionsAdminList(items) {
   return `
     <div class="admin-session-list">
       ${items.map(renderAdminSessionCard).join("")}
+    </div>
+  `;
+}
+
+function renderModuleCompletionsAdminList(items) {
+  if (!items.length) {
+    return renderAdminEmptyState("Aucune validation de module n’est enregistrée pour le moment.");
+  }
+
+  return `
+    <div class="admin-completion-grid">
+      ${items
+        .map(
+          (item) => `
+            <article class="admin-panel admin-completion-card">
+              <div class="admin-panel-head admin-panel-head-start">
+                <div class="admin-completion-copy">
+                  <div class="card-topline">
+                    <span class="eyebrow eyebrow-tight">Validation</span>
+                    <span class="subtle-badge">${escapeHtml(item.statusLabel)}</span>
+                  </div>
+                  <h3>${escapeHtml(item.moduleTitle)}</h3>
+                  <p>${escapeHtml(item.userDisplayLabel)}</p>
+                  <div class="admin-badge-list">
+                    ${
+                      item.userLogin42
+                        ? `<span class="tag">login42 · ${escapeHtml(item.userLogin42)}</span>`
+                        : ""
+                    }
+                    <span class="subtle-badge">${escapeHtml(item.completionDateLabel)}</span>
+                    ${
+                      item.sessionLabel
+                        ? `<span class="subtle-badge">${escapeHtml(item.sessionLabel)}</span>`
+                        : ""
+                    }
+                  </div>
+                  ${
+                    item.notes
+                      ? `<p class="admin-module-preview">${escapeHtml(item.notes)}</p>`
+                      : ""
+                  }
+                  ${
+                    item.validatedByLabel
+                      ? `<p class="admin-cell-meta">Validé par ${escapeHtml(item.validatedByLabel)}</p>`
+                      : ""
+                  }
+                </div>
+                <div class="admin-row-actions">
+                  <button class="button button-ghost button-small" data-action="edit" data-id="${escapeHtml(item.id)}" type="button">
+                    Modifier
+                  </button>
+                  <button class="button button-danger button-small" data-action="delete" data-id="${escapeHtml(item.id)}" type="button">
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            </article>
+          `,
+        )
+        .join("")}
     </div>
   `;
 }
@@ -2846,10 +3248,89 @@ function renderSessionModuleOptions(selectedIds = []) {
     .join("");
 }
 
+function renderModuleCompletionUserOptions(selectedUserId = "") {
+  const selectedValue = String(selectedUserId ?? "");
+
+  if (!adminState.users.length) {
+    return `<option value="">Aucun utilisateur disponible</option>`;
+  }
+
+  return `
+    <option value="">Choisir un utilisateur</option>
+    ${adminState.users
+      .map(
+        (userItem) => `
+          <option value="${escapeHtml(userItem.id)}" ${selectedValue === String(userItem.id) ? "selected" : ""}>
+            ${escapeHtml(userItem.optionLabel)}
+          </option>
+        `,
+      )
+      .join("")}
+  `;
+}
+
+function renderModuleCompletionModuleOptions(selectedModuleId = "") {
+  const selectedValue = String(selectedModuleId ?? "");
+
+  if (!adminState.modules.length) {
+    return `<option value="">Aucun module disponible</option>`;
+  }
+
+  return `
+    <option value="">Choisir un module</option>
+    ${adminState.modules
+      .map(
+        (moduleItem) => `
+          <option value="${escapeHtml(moduleItem.id)}" ${selectedValue === String(moduleItem.id) ? "selected" : ""}>
+            ${escapeHtml(moduleItem.title)}
+          </option>
+        `,
+      )
+      .join("")}
+  `;
+}
+
+function renderModuleCompletionSessionOptions(selectedSessionId = "") {
+  const selectedValue = String(selectedSessionId ?? "");
+
+  return `
+    <option value="">Aucune session</option>
+    ${adminState.sessions
+      .map(
+        (sessionItem) => `
+          <option value="${escapeHtml(sessionItem.id)}" ${selectedValue === String(sessionItem.id) ? "selected" : ""}>
+            ${escapeHtml(
+              [sessionItem.title, formatSafeDate(sessionItem.sessionDate)]
+                .filter(Boolean)
+                .join(" · "),
+            )}
+          </option>
+        `,
+      )
+      .join("")}
+  `;
+}
+
 function renderRegistrationStatusOptions(currentStatus) {
   const statuses = registrationStatusOptions.includes(currentStatus)
     ? registrationStatusOptions
     : [...registrationStatusOptions, currentStatus].filter(Boolean);
+
+  return statuses
+    .map(
+      (status) => `
+        <option value="${escapeHtml(status)}" ${status === currentStatus ? "selected" : ""}>
+          ${escapeHtml(status)}
+        </option>
+      `,
+    )
+    .join("");
+}
+
+function renderModuleCompletionStatusOptions(currentStatus) {
+  const statuses = moduleCompletionStatusOptions.includes(currentStatus)
+    ? moduleCompletionStatusOptions
+    : [...moduleCompletionStatusOptions, currentStatus].filter(Boolean);
 
   return statuses
     .map(
@@ -3241,6 +3722,75 @@ async function handleSessionsAdminFormSubmit(event) {
   await Promise.all([refreshSessionsAdminSection(), refreshRegistrationsAdminSection()]);
 }
 
+async function handleModuleCompletionFormSubmit(event) {
+  event.preventDefault();
+
+  const section = adminDom?.completions;
+
+  if (!section?.form || !section.submit) {
+    return;
+  }
+
+  if (!adminSessionUser?.id) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      "La session admin n’est pas disponible pour signer cette validation.",
+    );
+    return;
+  }
+
+  const payload = {
+    user_id: section.userId?.value ?? "",
+    module_id: section.moduleId?.value ?? "",
+    session_id: normalizeOptionalString(section.sessionId?.value),
+    validated_by: adminSessionUser.id,
+    completion_date: section.completionDate?.value ?? "",
+    status: section.status?.value ?? "completed",
+    notes: normalizeOptionalString(section.notes?.value),
+  };
+
+  if (!payload.user_id || !payload.module_id || !payload.completion_date || !payload.status) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      "Renseignez l’utilisateur, le module, la date et le statut.",
+    );
+    return;
+  }
+
+  const isEditing = Boolean(section.id?.value);
+  section.submit.disabled = true;
+
+  const query = isEditing
+    ? supabase
+        .from("user_module_completions")
+        .update(payload)
+        .eq("id", section.id.value)
+    : supabase.from("user_module_completions").insert([payload]);
+
+  const { error } = await query;
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible d’enregistrer cette validation.",
+    );
+    section.submit.disabled = false;
+    return;
+  }
+
+  resetModuleCompletionForm({ keepMessage: true });
+  setAdminMessage(
+    section.formMessage,
+    "success",
+    isEditing ? "Validation mise à jour." : "Validation ajoutée.",
+  );
+  section.submit.disabled = false;
+  await refreshModuleCompletionsAdminSection();
+}
+
 function populateInventoryForm(recordId) {
   const section = adminDom?.inventory;
   const record = findAdminRecordById(adminState.inventory, recordId);
@@ -3342,6 +3892,27 @@ function populateSessionsAdminForm(recordId) {
   setAdminMessage(section.formMessage, "success", "Mode modification activé.");
 }
 
+function populateModuleCompletionForm(recordId) {
+  const section = adminDom?.completions;
+  const record = findAdminRecordById(adminState.moduleCompletions, recordId);
+
+  if (!section || !record) {
+    return;
+  }
+
+  syncModuleCompletionFormOptions();
+  section.id.value = record.id;
+  section.userId.value = String(record.userId ?? "");
+  section.moduleId.value = String(record.moduleId ?? "");
+  section.sessionId.value = String(record.sessionId ?? "");
+  section.completionDate.value = record.completionDate || "";
+  section.status.innerHTML = renderModuleCompletionStatusOptions(record.status);
+  section.status.value = record.status;
+  section.notes.value = record.notes;
+  updateAdminFormMode("completions-admin", adminFormLabels.completion);
+  setAdminMessage(section.formMessage, "success", "Mode modification activé.");
+}
+
 function resetInventoryForm({ keepMessage = false } = {}) {
   const section = adminDom?.inventory;
   if (!section?.form || !section.id) {
@@ -3412,6 +3983,33 @@ function resetSessionsAdminForm({ keepMessage = false } = {}) {
   section.id.value = "";
   section.moduleOptions.innerHTML = renderSessionModuleOptions([]);
   updateAdminFormMode("sessions-admin", adminFormLabels.session);
+
+  if (!keepMessage) {
+    setAdminMessage(section.formMessage);
+  }
+}
+
+function resetModuleCompletionForm({ keepMessage = false } = {}) {
+  const section = adminDom?.completions;
+
+  if (!section?.form || !section.id) {
+    return;
+  }
+
+  section.form.reset();
+  section.id.value = "";
+  syncModuleCompletionFormOptions();
+
+  if (section.completionDate) {
+    section.completionDate.value = new Date().toISOString().slice(0, 10);
+  }
+
+  if (section.status) {
+    section.status.innerHTML = renderModuleCompletionStatusOptions("completed");
+    section.status.value = "completed";
+  }
+
+  updateAdminFormMode("completions-admin", adminFormLabels.completion);
 
   if (!keepMessage) {
     setAdminMessage(section.formMessage);
@@ -3566,6 +4164,42 @@ async function deleteSessionsAdminRecord(recordId, button) {
   await Promise.all([refreshSessionsAdminSection(), refreshRegistrationsAdminSection()]);
 }
 
+async function deleteModuleCompletionRecord(recordId, button) {
+  const section = adminDom?.completions;
+  const record = findAdminRecordById(adminState.moduleCompletions, recordId);
+
+  if (
+    !section ||
+    !record ||
+    !window.confirm(`Supprimer la validation de ${record.userDisplayLabel} pour ${record.moduleTitle} ?`)
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  const { error } = await supabase
+    .from("user_module_completions")
+    .delete()
+    .eq("id", recordId);
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible de supprimer cette validation.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  if (section.id.value === String(recordId)) {
+    resetModuleCompletionForm();
+  }
+
+  setAdminMessage(section.formMessage, "success", "Validation supprimée.");
+  await refreshModuleCompletionsAdminSection();
+}
+
 async function updateRegistrationStatus(recordId, button) {
   const selectNode = getRegistrationStatusSelectNode(recordId, button);
   const messageNode = getRegistrationFeedbackNode(button);
@@ -3669,6 +4303,29 @@ function normalizeAdminEventRecord(item) {
   };
 }
 
+function normalizeAdminUserRecord(item) {
+  const displayName = item.display_name ?? "";
+  const email = item.email ?? "Email non renseigné";
+  const role = item.role ?? "user";
+  const createdAt = item.created_at ?? "";
+
+  return {
+    id: item.id,
+    email,
+    role,
+    roleLabel: role === "admin" ? "Admin" : "Utilisateur",
+    displayName,
+    displayLabel: displayName || email,
+    login42: item.login_42 ?? "",
+    createdAt,
+    createdDateLabel: createdAt ? formatSafeDate(createdAt) : "Date inconnue",
+    optionLabel: [displayName || email, email, item.login_42 ? `login42 ${item.login_42}` : null]
+      .filter(Boolean)
+      .join(" · "),
+    searchableText: [displayName, email, item.login_42 ?? "", role].join(" ").toLowerCase(),
+  };
+}
+
 function normalizeAdminModuleRecord(item) {
   const description = item.description ?? "";
   const objectives = item.objectives ?? "";
@@ -3739,6 +4396,44 @@ function normalizeAdminRegistrationRecord(item) {
     sessionTitle: item.session_title ?? item.title ?? "Session",
     sessionDate: item.session_date ?? item.date ?? "",
     createdLabel: createdSource ? formatSafeDateTime(createdSource) : "Date non disponible",
+  };
+}
+
+function normalizeModuleCompletionRecord(item) {
+  const displayName = item.user_display_name ?? "";
+  const userEmail = item.user_email ?? "Utilisateur";
+  const validatedByDisplayName = item.validated_by_display_name ?? "";
+  const validatedByEmail = item.validated_by_email ?? "";
+
+  return {
+    id: item.id,
+    userId: item.user_id ?? "",
+    moduleId: item.module_id ?? "",
+    sessionId: item.session_id ?? "",
+    validatedBy: item.validated_by ?? "",
+    completionDate: item.completion_date ?? "",
+    completionDateLabel: item.completion_date
+      ? formatSafeDate(item.completion_date)
+      : "Date à confirmer",
+    status: item.status ?? "completed",
+    statusLabel: formatModuleCompletionStatus(item.status ?? "completed"),
+    notes: item.notes ?? "",
+    userDisplayName: displayName,
+    userEmail,
+    userDisplayLabel: displayName || userEmail,
+    userLogin42: item.user_login_42 ?? "",
+    moduleSlug: item.module_slug ?? "",
+    moduleTitle: item.module_title ?? "Module",
+    moduleDuration: item.module_duration ?? "",
+    sessionTitle: item.session_title ?? "",
+    sessionDate: item.session_date ?? "",
+    sessionLabel:
+      item.session_title || item.session_date
+        ? [item.session_title ?? "", item.session_date ? formatSafeDate(item.session_date) : ""]
+            .filter(Boolean)
+            .join(" · ")
+        : "",
+    validatedByLabel: validatedByDisplayName || validatedByEmail,
   };
 }
 
@@ -4344,6 +5039,17 @@ function formatRegistrationStatus(status) {
     completed: "Complété",
     confirmed: "Confirmé",
     waitlisted: "Liste d’attente",
+  };
+
+  return labelMap[status] ?? status ?? "Statut inconnu";
+}
+
+function formatModuleCompletionStatus(status) {
+  const labelMap = {
+    completed: "Complété",
+    attended: "Présent",
+    partial: "Partiel",
+    failed: "Non validé",
   };
 
   return labelMap[status] ?? status ?? "Statut inconnu";
@@ -5512,6 +6218,7 @@ async function hydrateAdminPage() {
   }
 
   const userEmail = session.user?.email ?? "Administrateur connecté";
+  adminSessionUser = session.user;
   content.innerHTML = renderAdminPage(userEmail);
   cacheAdminDom();
   bindAdminDashboardInteractions();
