@@ -336,6 +336,12 @@ p {
   transform: translateY(-2px);
 }
 
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.92;
+  transform: none;
+}
+
 .button-primary {
   background: var(--ink);
   color: var(--white);
@@ -361,6 +367,7 @@ p {
 .tag-row,
 .filter-row,
 .session-head,
+.session-modules,
 .section-action {
   display: flex;
   flex-wrap: wrap;
@@ -446,6 +453,29 @@ p {
   gap: 0.8rem;
 }
 
+.session-card {
+  align-content: start;
+}
+
+.session-modules {
+  gap: 0.65rem;
+}
+
+.session-notes {
+  color: rgba(31, 35, 37, 0.7);
+}
+
+.session-cta {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.15rem;
+}
+
+.session-availability {
+  color: rgba(31, 35, 37, 0.58);
+  font-size: 0.88rem;
+}
+
 .hero-panel-header,
 .inline-detail,
 .card-topline {
@@ -499,6 +529,12 @@ p {
   background: rgba(129, 166, 198, 0.18);
   font-family: "Manrope", sans-serif;
   font-size: 0.92em;
+}
+
+.admin-login-message {
+  min-height: 1.5rem;
+  color: rgba(31, 35, 37, 0.6);
+  font-size: 0.92rem;
 }
 
 .info-card {
@@ -628,6 +664,12 @@ p {
     background 180ms ease;
 }
 
+.schedule-item > div {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
 .schedule-item span {
   display: block;
   margin-top: 0.2rem;
@@ -658,6 +700,7 @@ p {
 }
 
 .signup-form input,
+.signup-form select,
 .signup-form textarea {
   width: 100%;
   padding: 0.95rem 1rem;
@@ -668,6 +711,7 @@ p {
 }
 
 .signup-form input:focus,
+.signup-form select:focus,
 .signup-form textarea:focus {
   outline: 2px solid rgba(129, 166, 198, 0.4);
   border-color: rgba(129, 166, 198, 0.5);
