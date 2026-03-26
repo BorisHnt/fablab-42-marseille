@@ -1,8 +1,6 @@
 import {
   events,
   highlights,
-  inventory,
-  materialNeeds,
   modules,
   sessions,
 } from "./data.js";
@@ -23,6 +21,52 @@ const routeMap = {
   admin: "admin.html",
   adminLogin: "admin-login.html",
 };
+
+const adminState = {
+  inventory: [],
+  neededEquipment: [],
+  events: [],
+  modules: [],
+  sessionModules: [],
+  sessions: [],
+  registrations: [],
+};
+
+let adminDom = null;
+
+const adminFormLabels = {
+  inventory: {
+    createTitle: "Ajouter un item",
+    editTitle: "Modifier un item",
+    createButton: "Ajouter à l’inventaire",
+    editButton: "Enregistrer les changements",
+  },
+  neededEquipment: {
+    createTitle: "Ajouter un besoin",
+    editTitle: "Modifier un besoin",
+    createButton: "Ajouter au suivi",
+    editButton: "Enregistrer les changements",
+  },
+  event: {
+    createTitle: "Ajouter un événement",
+    editTitle: "Modifier un événement",
+    createButton: "Publier l’événement",
+    editButton: "Enregistrer les changements",
+  },
+  session: {
+    createTitle: "Ajouter une session",
+    editTitle: "Modifier une session",
+    createButton: "Créer la session",
+    editButton: "Enregistrer les changements",
+  },
+};
+
+const registrationStatusOptions = [
+  "registered",
+  "confirmed",
+  "waitlisted",
+  "cancelled",
+];
 
 const navItems = [
   { key: "home", href: routeMap.home, label: "Accueil" },
@@ -483,8 +527,8 @@ function renderAdminPage(userEmail = "") {
       <section class="page-hero animate-rise">
         ${sectionHeading(
           "Admin",
-          "Structure interne prête à évoluer",
-          "Même sans backend branché, l’architecture admin existe déjà pour préparer la gestion du matériel et les besoins du fablab.",
+          "Interface d’administration du fablab",
+          "Une base utile pour gérer le matériel, les besoins, les événements, les sessions et les inscriptions depuis Supabase.",
         )}
         <div class="section-action">
           <span class="subtle-badge admin-user-badge">${userEmail}</span>
@@ -509,59 +553,362 @@ function renderAdminPage(userEmail = "") {
 
       <section class="metrics-grid">
         <article class="metric-card animate-rise">
-          <strong>${inventory.length} lignes d’inventaire</strong>
-          <span>Une première vue pour organiser le matériel disponible.</span>
+          <strong id="admin-inventory-metric">Chargement de l’inventaire</strong>
+          <span>Le stock utile du fablab, prêt à être mis à jour.</span>
         </article>
         <article class="metric-card animate-rise">
-          <strong>${materialNeeds.length} besoins recensés</strong>
-          <span>Une base claire pour les achats et les demandes à venir.</span>
+          <strong id="admin-needs-metric">Chargement des besoins</strong>
+          <span>Le matériel à commander ou documenter pour la suite.</span>
         </article>
         <article class="metric-card animate-rise">
-          <strong>Lecture immédiate</strong>
-          <span>Des tableaux propres et crédibles, faciles à enrichir ensuite.</span>
+          <strong id="admin-events-metric">Chargement des événements</strong>
+          <span>Les rendez-vous visibles côté public et leur pilotage éditorial.</span>
+        </article>
+        <article class="metric-card animate-rise">
+          <strong id="admin-registrations-metric">Chargement des inscriptions</strong>
+          <span>Le suivi des demandes et des statuts de participation.</span>
         </article>
       </section>
 
-      <section class="section-card animate-rise">
-        ${sectionHeading(
-          "Inventaire",
-          "Matériel disponible",
-          "Une première vue de l’inventaire pour imaginer la gestion du stock au quotidien.",
-        )}
-        ${renderTable(
-          [
-            "Nom du matériel",
-            "Catégorie",
-            "Quantité",
-            "État",
-            "Emplacement",
-          ],
-          inventory.map((item) => [
-            item.name,
-            item.category,
-            item.quantity,
-            item.condition,
-            item.location,
-          ]),
-        )}
-      </section>
+      ${renderAdminCrudSection({
+        sectionId: "inventory",
+        eyebrow: "Inventaire",
+        title: "Matériel disponible",
+        text: "Gérez les références, quantités et emplacements du matériel réellement disponible dans le fablab.",
+        formTitle: "Ajouter un item",
+        listTitle: "Inventaire actuel",
+        loadingText: "Chargement de l’inventaire...",
+        formMarkup: renderInventoryAdminForm(),
+      })}
 
-      <section class="section-card section-card-soft animate-rise">
-        ${sectionHeading(
-          "Besoins",
-          "Matériel nécessaire",
-          "Une zone pour visualiser ce qu’il faut acquérir, documenter ou faire financer.",
-        )}
-        ${renderTable(
-          ["Matériel souhaité", "Quantité voulue", "Priorité", "Statut"],
-          materialNeeds.map((item) => [
-            item.name,
-            item.wanted,
-            item.priority,
-            item.status,
-          ]),
-        )}
-      </section>
+      ${renderAdminCrudSection({
+        sectionId: "needed-equipment",
+        eyebrow: "Besoins",
+        title: "Matériel nécessaire",
+        text: "Suivez les achats à lancer, les besoins prioritaires et les notes utiles à la coordination.",
+        formTitle: "Ajouter un besoin",
+        listTitle: "Besoins suivis",
+        loadingText: "Chargement des besoins matériels...",
+        formMarkup: renderNeededEquipmentAdminForm(),
+        sectionClassName: "section-card-soft",
+      })}
+
+      ${renderAdminCrudSection({
+        sectionId: "events-admin",
+        eyebrow: "Agenda",
+        title: "Événements publiés",
+        text: "Publiez, ajustez ou retirez les événements visibles sur le site public.",
+        formTitle: "Ajouter un événement",
+        listTitle: "Événements en base",
+        loadingText: "Chargement des événements...",
+        formMarkup: renderEventsAdminForm(),
+      })}
+
+      ${renderAdminCrudSection({
+        sectionId: "sessions-admin",
+        eyebrow: "Sessions",
+        title: "Sessions de cours",
+        text: "Créez les sessions, reliez-les aux modules et gardez une lecture claire des places disponibles.",
+        formTitle: "Ajouter une session",
+        listTitle: "Sessions programmées",
+        loadingText: "Chargement des sessions...",
+        formMarkup: renderSessionsAdminForm(),
+        sectionClassName: "section-card-soft",
+      })}
+
+      ${renderAdminListSection({
+        sectionId: "registrations-admin",
+        eyebrow: "Inscriptions",
+        title: "Demandes reçues",
+        text: "Consultez les inscriptions, mettez à jour leur statut et supprimez les entrées inutiles.",
+        listTitle: "Inscriptions en base",
+        loadingText: "Chargement des inscriptions...",
+      })}
+    </div>
+  `;
+}
+
+function renderAdminCrudSection({
+  sectionId,
+  eyebrow,
+  title,
+  text,
+  formTitle,
+  listTitle,
+  loadingText,
+  formMarkup,
+  sectionClassName = "",
+}) {
+  return `
+    <section class="section-card ${sectionClassName} animate-rise">
+      ${sectionHeading(eyebrow, title, text)}
+      <div class="admin-section-grid">
+        <article class="admin-panel admin-panel-form">
+          <div class="admin-panel-head">
+            <h3 id="${sectionId}-form-title">${formTitle}</h3>
+          </div>
+          ${formMarkup}
+          <p id="${sectionId}-form-message" class="admin-feedback" aria-live="polite"></p>
+        </article>
+
+        <article class="admin-panel admin-panel-list">
+          <div class="admin-panel-head">
+            <h3>${listTitle}</h3>
+            <span class="subtle-badge" id="${sectionId}-count">Chargement...</span>
+          </div>
+          <div id="${sectionId}-list">${renderAdminListLoadingState(loadingText)}</div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function renderAdminListSection({
+  sectionId,
+  eyebrow,
+  title,
+  text,
+  listTitle,
+  loadingText,
+}) {
+  return `
+    <section class="section-card animate-rise">
+      ${sectionHeading(eyebrow, title, text)}
+      <article class="admin-panel admin-panel-list admin-panel-full">
+        <div class="admin-panel-head">
+          <h3>${listTitle}</h3>
+          <span class="subtle-badge" id="${sectionId}-count">Chargement...</span>
+        </div>
+        <p id="${sectionId}-message" class="admin-feedback" aria-live="polite"></p>
+        <div id="${sectionId}-list">${renderAdminListLoadingState(loadingText)}</div>
+      </article>
+    </section>
+  `;
+}
+
+function renderInventoryAdminForm() {
+  return `
+    <form class="signup-form admin-form" id="inventory-form">
+      <input id="inventory-id" name="id" type="hidden" />
+      <div class="admin-field-grid">
+        <label for="inventory-item-name">
+          Nom du matériel
+          <input id="inventory-item-name" name="item_name" type="text" required />
+        </label>
+        <label for="inventory-internal-id">
+          Référence interne
+          <input id="inventory-internal-id" name="internal_id" type="text" />
+        </label>
+      </div>
+      <div class="admin-field-grid">
+        <label for="inventory-category">
+          Catégorie
+          <input id="inventory-category" name="category" type="text" />
+        </label>
+        <label for="inventory-quantity">
+          Quantité
+          <input id="inventory-quantity" name="quantity" type="number" min="0" step="1" required />
+        </label>
+      </div>
+      <div class="admin-field-grid">
+        <label for="inventory-condition">
+          État
+          <input id="inventory-condition" name="condition" type="text" />
+        </label>
+        <label for="inventory-location">
+          Emplacement
+          <input id="inventory-location" name="location" type="text" />
+        </label>
+      </div>
+      <div class="admin-form-actions">
+        <button class="button button-primary" id="inventory-submit" type="submit">
+          Ajouter à l’inventaire
+        </button>
+        <button class="button button-ghost is-hidden" id="inventory-cancel-edit" type="button">
+          Annuler
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderNeededEquipmentAdminForm() {
+  return `
+    <form class="signup-form admin-form" id="needed-equipment-form">
+      <input id="needed-equipment-id" name="id" type="hidden" />
+      <div class="admin-field-grid">
+        <label for="needed-equipment-item-name">
+          Matériel souhaité
+          <input id="needed-equipment-item-name" name="item_name" type="text" required />
+        </label>
+        <label for="needed-equipment-category">
+          Catégorie
+          <input id="needed-equipment-category" name="category" type="text" />
+        </label>
+      </div>
+      <div class="admin-field-grid">
+        <label for="needed-equipment-quantity">
+          Quantité voulue
+          <input
+            id="needed-equipment-quantity"
+            name="quantity_needed"
+            type="number"
+            min="0"
+            step="1"
+            required
+          />
+        </label>
+        <label for="needed-equipment-priority">
+          Priorité
+          <input id="needed-equipment-priority" name="priority" type="text" />
+        </label>
+      </div>
+      <label for="needed-equipment-status">
+        Statut
+        <input id="needed-equipment-status" name="status" type="text" />
+      </label>
+      <label for="needed-equipment-note">
+        Note
+        <textarea id="needed-equipment-note" name="note" rows="4"></textarea>
+      </label>
+      <div class="admin-form-actions">
+        <button class="button button-primary" id="needed-equipment-submit" type="submit">
+          Ajouter au suivi
+        </button>
+        <button
+          class="button button-ghost is-hidden"
+          id="needed-equipment-cancel-edit"
+          type="button"
+        >
+          Annuler
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderEventsAdminForm() {
+  return `
+    <form class="signup-form admin-form" id="events-admin-form">
+      <input id="events-admin-id" name="id" type="hidden" />
+      <label for="events-admin-title">
+        Titre
+        <input id="events-admin-title" name="title" type="text" required />
+      </label>
+      <label for="events-admin-short-description">
+        Résumé court
+        <textarea
+          id="events-admin-short-description"
+          name="short_description"
+          rows="3"
+          required
+        ></textarea>
+      </label>
+      <label for="events-admin-description">
+        Description complète
+        <textarea id="events-admin-description" name="description" rows="5"></textarea>
+      </label>
+      <div class="admin-field-grid">
+        <label for="events-admin-date">
+          Date
+          <input id="events-admin-date" name="event_date" type="date" required />
+        </label>
+        <label for="events-admin-location">
+          Lieu
+          <input id="events-admin-location" name="location" type="text" />
+        </label>
+      </div>
+      <div class="admin-field-grid">
+        <label for="events-admin-start-time">
+          Heure de début
+          <input id="events-admin-start-time" name="start_time" type="time" />
+        </label>
+        <label for="events-admin-end-time">
+          Heure de fin
+          <input id="events-admin-end-time" name="end_time" type="time" />
+        </label>
+      </div>
+      <label for="events-admin-image-url">
+        Image URL
+        <input id="events-admin-image-url" name="image_url" type="url" />
+      </label>
+      <div class="admin-form-actions">
+        <button class="button button-primary" id="events-admin-submit" type="submit">
+          Publier l’événement
+        </button>
+        <button class="button button-ghost is-hidden" id="events-admin-cancel-edit" type="button">
+          Annuler
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderSessionsAdminForm() {
+  return `
+    <form class="signup-form admin-form" id="sessions-admin-form">
+      <input id="sessions-admin-id" name="id" type="hidden" />
+      <label for="sessions-admin-title">
+        Titre de session
+        <input id="sessions-admin-title" name="title" type="text" required />
+      </label>
+      <div class="admin-field-grid">
+        <label for="sessions-admin-date">
+          Date
+          <input id="sessions-admin-date" name="session_date" type="date" required />
+        </label>
+        <label for="sessions-admin-level">
+          Niveau
+          <input id="sessions-admin-level" name="level" type="text" placeholder="Débutant" />
+        </label>
+      </div>
+      <div class="admin-field-grid">
+        <label for="sessions-admin-start-time">
+          Heure de début
+          <input id="sessions-admin-start-time" name="start_time" type="time" />
+        </label>
+        <label for="sessions-admin-end-time">
+          Heure de fin
+          <input id="sessions-admin-end-time" name="end_time" type="time" />
+        </label>
+      </div>
+      <div class="admin-field-grid">
+        <label for="sessions-admin-seats-total">
+          Places totales
+          <input id="sessions-admin-seats-total" name="seats_total" type="number" min="0" step="1" />
+        </label>
+      </div>
+      <fieldset class="admin-module-fieldset">
+        <legend>Modules liés</legend>
+        <div id="sessions-admin-module-options" class="admin-checkbox-grid">
+          <p class="admin-helper-text">Chargement des modules...</p>
+        </div>
+      </fieldset>
+      <label for="sessions-admin-notes">
+        Notes
+        <textarea id="sessions-admin-notes" name="notes" rows="4"></textarea>
+      </label>
+      <div class="admin-form-actions">
+        <button class="button button-primary" id="sessions-admin-submit" type="submit">
+          Créer la session
+        </button>
+        <button
+          class="button button-ghost is-hidden"
+          id="sessions-admin-cancel-edit"
+          type="button"
+        >
+          Annuler
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderAdminListLoadingState(text) {
+  return `
+    <div class="empty-state admin-empty-state">
+      <span class="subtle-badge">Chargement</span>
+      <p>${text}</p>
     </div>
   `;
 }
@@ -914,6 +1261,1646 @@ function miniDetailCard(title, text) {
       </div>
     </article>
   `;
+}
+
+function cacheAdminDom() {
+  adminDom = {
+    inventory: {
+      form: document.getElementById("inventory-form"),
+      formTitle: document.getElementById("inventory-form-title"),
+      formMessage: document.getElementById("inventory-form-message"),
+      list: document.getElementById("inventory-list"),
+      count: document.getElementById("inventory-count"),
+      id: document.getElementById("inventory-id"),
+      itemName: document.getElementById("inventory-item-name"),
+      internalId: document.getElementById("inventory-internal-id"),
+      category: document.getElementById("inventory-category"),
+      quantity: document.getElementById("inventory-quantity"),
+      condition: document.getElementById("inventory-condition"),
+      location: document.getElementById("inventory-location"),
+      submit: document.getElementById("inventory-submit"),
+      cancel: document.getElementById("inventory-cancel-edit"),
+    },
+    neededEquipment: {
+      form: document.getElementById("needed-equipment-form"),
+      formTitle: document.getElementById("needed-equipment-form-title"),
+      formMessage: document.getElementById("needed-equipment-form-message"),
+      list: document.getElementById("needed-equipment-list"),
+      count: document.getElementById("needed-equipment-count"),
+      id: document.getElementById("needed-equipment-id"),
+      itemName: document.getElementById("needed-equipment-item-name"),
+      category: document.getElementById("needed-equipment-category"),
+      quantity: document.getElementById("needed-equipment-quantity"),
+      priority: document.getElementById("needed-equipment-priority"),
+      status: document.getElementById("needed-equipment-status"),
+      note: document.getElementById("needed-equipment-note"),
+      submit: document.getElementById("needed-equipment-submit"),
+      cancel: document.getElementById("needed-equipment-cancel-edit"),
+    },
+    events: {
+      form: document.getElementById("events-admin-form"),
+      formTitle: document.getElementById("events-admin-form-title"),
+      formMessage: document.getElementById("events-admin-form-message"),
+      list: document.getElementById("events-admin-list"),
+      count: document.getElementById("events-admin-count"),
+      id: document.getElementById("events-admin-id"),
+      title: document.getElementById("events-admin-title"),
+      shortDescription: document.getElementById("events-admin-short-description"),
+      description: document.getElementById("events-admin-description"),
+      date: document.getElementById("events-admin-date"),
+      startTime: document.getElementById("events-admin-start-time"),
+      endTime: document.getElementById("events-admin-end-time"),
+      location: document.getElementById("events-admin-location"),
+      imageUrl: document.getElementById("events-admin-image-url"),
+      submit: document.getElementById("events-admin-submit"),
+      cancel: document.getElementById("events-admin-cancel-edit"),
+    },
+    sessions: {
+      form: document.getElementById("sessions-admin-form"),
+      formTitle: document.getElementById("sessions-admin-form-title"),
+      formMessage: document.getElementById("sessions-admin-form-message"),
+      list: document.getElementById("sessions-admin-list"),
+      count: document.getElementById("sessions-admin-count"),
+      id: document.getElementById("sessions-admin-id"),
+      title: document.getElementById("sessions-admin-title"),
+      date: document.getElementById("sessions-admin-date"),
+      startTime: document.getElementById("sessions-admin-start-time"),
+      endTime: document.getElementById("sessions-admin-end-time"),
+      level: document.getElementById("sessions-admin-level"),
+      seatsTotal: document.getElementById("sessions-admin-seats-total"),
+      notes: document.getElementById("sessions-admin-notes"),
+      moduleOptions: document.getElementById("sessions-admin-module-options"),
+      submit: document.getElementById("sessions-admin-submit"),
+      cancel: document.getElementById("sessions-admin-cancel-edit"),
+    },
+    registrations: {
+      list: document.getElementById("registrations-admin-list"),
+      count: document.getElementById("registrations-admin-count"),
+      message: document.getElementById("registrations-admin-message"),
+    },
+    metrics: {
+      inventory: document.getElementById("admin-inventory-metric"),
+      needs: document.getElementById("admin-needs-metric"),
+      events: document.getElementById("admin-events-metric"),
+      registrations: document.getElementById("admin-registrations-metric"),
+    },
+  };
+}
+
+function bindAdminDashboardInteractions() {
+  bindInventoryAdminControls();
+  bindNeededEquipmentAdminControls();
+  bindEventsAdminControls();
+  bindSessionsAdminControls();
+  bindRegistrationsAdminControls();
+}
+
+async function initializeAdminDashboard() {
+  if (!adminDom) {
+    return;
+  }
+
+  renderAdminMetrics();
+  await Promise.all([
+    refreshInventorySection(),
+    refreshNeededEquipmentSection(),
+    refreshEventsAdminSection(),
+    refreshModulesAdminCollection(),
+    refreshSessionsAdminSection(),
+    refreshRegistrationsAdminSection(),
+  ]);
+}
+
+function bindInventoryAdminControls() {
+  const section = adminDom?.inventory;
+
+  if (!section?.form || !section.list) {
+    return;
+  }
+
+  section.form.addEventListener("submit", handleInventoryFormSubmit);
+  section.cancel?.addEventListener("click", () => resetInventoryForm());
+
+  section.list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action][data-id]");
+    if (!button) {
+      return;
+    }
+
+    const recordId = button.dataset.id;
+
+    if (button.dataset.action === "edit") {
+      populateInventoryForm(recordId);
+      return;
+    }
+
+    if (button.dataset.action === "delete") {
+      await deleteInventoryRecord(recordId, button);
+    }
+  });
+
+  updateAdminFormMode("inventory", adminFormLabels.inventory);
+}
+
+function bindNeededEquipmentAdminControls() {
+  const section = adminDom?.neededEquipment;
+
+  if (!section?.form || !section.list) {
+    return;
+  }
+
+  section.form.addEventListener("submit", handleNeededEquipmentFormSubmit);
+  section.cancel?.addEventListener("click", () => resetNeededEquipmentForm());
+
+  section.list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action][data-id]");
+    if (!button) {
+      return;
+    }
+
+    const recordId = button.dataset.id;
+
+    if (button.dataset.action === "edit") {
+      populateNeededEquipmentForm(recordId);
+      return;
+    }
+
+    if (button.dataset.action === "delete") {
+      await deleteNeededEquipmentRecord(recordId, button);
+    }
+  });
+
+  updateAdminFormMode("needed-equipment", adminFormLabels.neededEquipment);
+}
+
+function bindEventsAdminControls() {
+  const section = adminDom?.events;
+
+  if (!section?.form || !section.list) {
+    return;
+  }
+
+  section.form.addEventListener("submit", handleEventAdminFormSubmit);
+  section.cancel?.addEventListener("click", () => resetEventsAdminForm());
+
+  section.list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action][data-id]");
+    if (!button) {
+      return;
+    }
+
+    const recordId = button.dataset.id;
+
+    if (button.dataset.action === "edit") {
+      populateEventsAdminForm(recordId);
+      return;
+    }
+
+    if (button.dataset.action === "delete") {
+      await deleteEventAdminRecord(recordId, button);
+    }
+  });
+
+  updateAdminFormMode("events-admin", adminFormLabels.event);
+}
+
+function bindSessionsAdminControls() {
+  const section = adminDom?.sessions;
+
+  if (!section?.form || !section.list) {
+    return;
+  }
+
+  section.form.addEventListener("submit", handleSessionsAdminFormSubmit);
+  section.cancel?.addEventListener("click", () => resetSessionsAdminForm());
+
+  section.list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action][data-id]");
+    if (!button) {
+      return;
+    }
+
+    const recordId = button.dataset.id;
+
+    if (button.dataset.action === "edit") {
+      populateSessionsAdminForm(recordId);
+      return;
+    }
+
+    if (button.dataset.action === "delete") {
+      await deleteSessionsAdminRecord(recordId, button);
+    }
+  });
+
+  updateAdminFormMode("sessions-admin", adminFormLabels.session);
+}
+
+function bindRegistrationsAdminControls() {
+  const section = adminDom?.registrations;
+
+  if (!section?.list) {
+    return;
+  }
+
+  section.list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action][data-id]");
+    if (!button) {
+      return;
+    }
+
+    const recordId = button.dataset.id;
+
+    if (button.dataset.action === "save-status") {
+      await updateRegistrationStatus(recordId, button);
+      return;
+    }
+
+    if (button.dataset.action === "delete") {
+      await deleteRegistrationRecord(recordId, button);
+    }
+  });
+}
+
+async function refreshInventorySection() {
+  const section = adminDom?.inventory;
+
+  if (!section?.list || !section.count) {
+    return;
+  }
+
+  section.count.textContent = "Chargement...";
+  section.list.innerHTML = renderAdminListLoadingState("Récupération de l’inventaire...");
+
+  const { data, error } = await supabase
+    .from("inventory")
+    .select("*")
+    .order("item_name", { ascending: true });
+
+  if (error) {
+    adminState.inventory = [];
+    section.count.textContent = "Erreur";
+    section.list.innerHTML = renderAdminErrorState(
+      "Impossible de charger l’inventaire pour le moment.",
+    );
+    renderAdminMetrics();
+    return;
+  }
+
+  adminState.inventory = (data ?? []).map(normalizeInventoryRecord);
+  section.count.textContent = formatAdminCount(adminState.inventory.length, "item", "items");
+  section.list.innerHTML = renderInventoryAdminList(adminState.inventory);
+  renderAdminMetrics();
+}
+
+async function refreshNeededEquipmentSection() {
+  const section = adminDom?.neededEquipment;
+
+  if (!section?.list || !section.count) {
+    return;
+  }
+
+  section.count.textContent = "Chargement...";
+  section.list.innerHTML = renderAdminListLoadingState("Récupération des besoins matériels...");
+
+  const { data, error } = await supabase
+    .from("needed_equipment")
+    .select("*")
+    .order("priority", { ascending: true })
+    .order("item_name", { ascending: true });
+
+  if (error) {
+    adminState.neededEquipment = [];
+    section.count.textContent = "Erreur";
+    section.list.innerHTML = renderAdminErrorState(
+      "Impossible de charger les besoins matériels pour le moment.",
+    );
+    renderAdminMetrics();
+    return;
+  }
+
+  adminState.neededEquipment = (data ?? []).map(normalizeNeededEquipmentRecord);
+  section.count.textContent = formatAdminCount(
+    adminState.neededEquipment.length,
+    "besoin",
+    "besoins",
+  );
+  section.list.innerHTML = renderNeededEquipmentAdminList(adminState.neededEquipment);
+  renderAdminMetrics();
+}
+
+async function refreshEventsAdminSection() {
+  const section = adminDom?.events;
+
+  if (!section?.list || !section.count) {
+    return;
+  }
+
+  section.count.textContent = "Chargement...";
+  section.list.innerHTML = renderAdminListLoadingState("Récupération des événements...");
+
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .order("event_date", { ascending: true });
+
+  if (error) {
+    adminState.events = [];
+    section.count.textContent = "Erreur";
+    section.list.innerHTML = renderAdminErrorState(
+      "Impossible de charger les événements pour le moment.",
+    );
+    renderAdminMetrics();
+    return;
+  }
+
+  adminState.events = (data ?? []).map(normalizeAdminEventRecord);
+  section.count.textContent = formatAdminCount(
+    adminState.events.length,
+    "événement",
+    "événements",
+  );
+  section.list.innerHTML = renderEventsAdminList(adminState.events);
+  renderAdminMetrics();
+}
+
+async function refreshModulesAdminCollection(selectedIds = null) {
+  const section = adminDom?.sessions;
+
+  if (!section?.moduleOptions) {
+    return false;
+  }
+
+  const preservedSelection = selectedIds ?? getSelectedSessionModuleIds();
+  section.moduleOptions.innerHTML = `<p class="admin-helper-text">Chargement des modules...</p>`;
+
+  const { data, error } = await supabase
+    .from("modules")
+    .select("id, title")
+    .order("title", { ascending: true });
+
+  if (error) {
+    adminState.modules = [];
+    section.moduleOptions.innerHTML = `
+      <p class="admin-helper-text admin-helper-error">
+        Impossible de charger les modules disponibles.
+      </p>
+    `;
+    return false;
+  }
+
+  adminState.modules = (data ?? []).map(normalizeAdminModuleRecord);
+  section.moduleOptions.innerHTML = renderSessionModuleOptions(preservedSelection);
+  return true;
+}
+
+async function refreshSessionsAdminSection() {
+  const section = adminDom?.sessions;
+
+  if (!section?.list || !section.count) {
+    return;
+  }
+
+  section.count.textContent = "Chargement...";
+  section.list.innerHTML = renderAdminListLoadingState("Récupération des sessions...");
+
+  const [sessionsResult, sessionModulesResult] = await Promise.all([
+    supabase
+      .from("sessions_with_modules")
+      .select("*")
+      .order("session_date", { ascending: true })
+      .order("start_time", { ascending: true }),
+    supabase.from("session_modules").select("session_id, module_id"),
+  ]);
+
+  if (sessionsResult.error || sessionModulesResult.error) {
+    adminState.sessions = [];
+    adminState.sessionModules = [];
+    section.count.textContent = "Erreur";
+    section.list.innerHTML = renderAdminErrorState(
+      sessionsResult.error?.message ||
+        sessionModulesResult.error?.message ||
+        "Impossible de charger les sessions pour le moment.",
+    );
+    return;
+  }
+
+  adminState.sessionModules = (sessionModulesResult.data ?? []).map(
+    normalizeSessionModuleLink,
+  );
+  adminState.sessions = (sessionsResult.data ?? []).map(normalizeAdminSessionRecord).map(
+    attachSessionModuleIds,
+  );
+
+  section.count.textContent = formatAdminCount(
+    adminState.sessions.length,
+    "session",
+    "sessions",
+  );
+  section.list.innerHTML = renderSessionsAdminList(adminState.sessions);
+}
+
+async function refreshRegistrationsAdminSection() {
+  const section = adminDom?.registrations;
+
+  if (!section?.list || !section.count) {
+    return;
+  }
+
+  section.count.textContent = "Chargement...";
+  section.list.innerHTML = renderAdminListLoadingState("Récupération des inscriptions...");
+
+  const { data, error } = await supabase
+    .from("registrations_with_sessions")
+    .select("*")
+    .order("session_date", { ascending: true });
+
+  if (error) {
+    adminState.registrations = [];
+    section.count.textContent = "Erreur";
+    section.list.innerHTML = renderAdminErrorState(
+      "Impossible de charger les inscriptions pour le moment.",
+    );
+    renderAdminMetrics();
+    return;
+  }
+
+  adminState.registrations = (data ?? []).map(normalizeAdminRegistrationRecord);
+  section.count.textContent = formatAdminCount(
+    adminState.registrations.length,
+    "inscription",
+    "inscriptions",
+  );
+  section.list.innerHTML = renderRegistrationsAdminList(adminState.registrations);
+  renderAdminMetrics();
+}
+
+function renderInventoryAdminList(items) {
+  if (!items.length) {
+    return renderAdminEmptyState("Aucun item d’inventaire n’est enregistré pour le moment.");
+  }
+
+  const rows = items
+    .map(
+      (item) => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(item.itemName)}</strong>
+            ${
+              item.internalId
+                ? `<div class="admin-cell-meta">Réf. ${escapeHtml(item.internalId)}</div>`
+                : ""
+            }
+          </td>
+          <td>${escapeHtml(item.category || "Non renseignée")}</td>
+          <td>${escapeHtml(item.quantity)}</td>
+          <td>${escapeHtml(item.condition || "Non renseigné")}</td>
+          <td>${escapeHtml(item.location || "Non renseigné")}</td>
+          <td>${renderAdminRowActions(item.id)}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  return renderAdminTable(
+    [
+      "Nom du matériel",
+      "Catégorie",
+      "Quantité",
+      "État",
+      "Emplacement",
+      "Actions",
+    ],
+    rows,
+  );
+}
+
+function renderNeededEquipmentAdminList(items) {
+  if (!items.length) {
+    return renderAdminEmptyState("Aucun besoin matériel n’est enregistré pour le moment.");
+  }
+
+  const rows = items
+    .map(
+      (item) => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(item.itemName)}</strong>
+            ${
+              item.note
+                ? `<div class="admin-cell-meta">${escapeHtml(item.note)}</div>`
+                : ""
+            }
+          </td>
+          <td>${escapeHtml(item.category || "Non renseignée")}</td>
+          <td>${escapeHtml(item.quantityNeeded)}</td>
+          <td>${escapeHtml(item.priority || "Non définie")}</td>
+          <td>${escapeHtml(item.status || "Non défini")}</td>
+          <td>${renderAdminRowActions(item.id)}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  return renderAdminTable(
+    [
+      "Matériel souhaité",
+      "Catégorie",
+      "Quantité",
+      "Priorité",
+      "Statut",
+      "Actions",
+    ],
+    rows,
+  );
+}
+
+function renderEventsAdminList(items) {
+  if (!items.length) {
+    return renderAdminEmptyState("Aucun événement n’est publié pour le moment.");
+  }
+
+  const rows = items
+    .map(
+      (item) => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(item.title)}</strong>
+            ${
+              item.shortDescription
+                ? `<div class="admin-cell-meta">${escapeHtml(item.shortDescription)}</div>`
+                : ""
+            }
+          </td>
+          <td>
+            <strong>${escapeHtml(formatSafeDate(item.eventDate))}</strong>
+            ${
+              item.timeRange
+                ? `<div class="admin-cell-meta">${escapeHtml(item.timeRange)}</div>`
+                : ""
+            }
+          </td>
+          <td>${escapeHtml(item.location || "Non renseigné")}</td>
+          <td>${escapeHtml(item.imageUrl || "Aucune image")}</td>
+          <td>${renderAdminRowActions(item.id)}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  return renderAdminTable(
+    ["Titre", "Date", "Lieu", "Image", "Actions"],
+    rows,
+  );
+}
+
+function renderSessionsAdminList(items) {
+  if (!items.length) {
+    return renderAdminEmptyState("Aucune session de cours n’est enregistrée pour le moment.");
+  }
+
+  const rows = items
+    .map(
+      (item) => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(item.title)}</strong>
+            ${
+              item.notes
+                ? `<div class="admin-cell-meta">${escapeHtml(item.notes)}</div>`
+                : ""
+            }
+          </td>
+          <td>
+            <strong>${escapeHtml(formatSafeDate(item.sessionDate))}</strong>
+            ${
+              item.timeRange
+                ? `<div class="admin-cell-meta">${escapeHtml(item.timeRange)}</div>`
+                : ""
+            }
+          </td>
+          <td>${renderAdminTagList(item.modules)}</td>
+          <td>${escapeHtml(item.level || "Tous niveaux")}</td>
+          <td>
+            <strong>${escapeHtml(item.seatsTotal ?? "—")}</strong>
+            ${
+              item.seatsRemaining !== null
+                ? `<div class="admin-cell-meta">${escapeHtml(
+                    `${item.seatsRemaining} restantes`,
+                  )}</div>`
+                : ""
+            }
+          </td>
+          <td>${renderAdminRowActions(item.id)}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  return renderAdminTable(
+    ["Session", "Date", "Modules", "Niveau", "Places", "Actions"],
+    rows,
+  );
+}
+
+function renderRegistrationsAdminList(items) {
+  if (!items.length) {
+    return renderAdminEmptyState("Aucune inscription n’a encore été reçue.");
+  }
+
+  const rows = items
+    .map(
+      (item) => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(item.firstName)} ${escapeHtml(item.lastName)}</strong>
+            <div class="admin-cell-meta">${escapeHtml(item.email)}</div>
+            ${
+              item.login42
+                ? `<div class="admin-cell-meta">Login 42 : ${escapeHtml(item.login42)}</div>`
+                : ""
+            }
+          </td>
+          <td>
+            <strong>${escapeHtml(item.sessionTitle)}</strong>
+            <div class="admin-cell-meta">${escapeHtml(formatSafeDate(item.sessionDate))}</div>
+          </td>
+          <td>${escapeHtml(item.createdLabel)}</td>
+          <td>
+            <select class="admin-inline-select" id="registration-status-${escapeHtml(item.id)}" data-registration-id="${escapeHtml(item.id)}">
+              ${renderRegistrationStatusOptions(item.status)}
+            </select>
+          </td>
+          <td>
+            <div class="admin-row-actions">
+              <button
+                class="button button-ghost button-small"
+                data-action="save-status"
+                data-id="${escapeHtml(item.id)}"
+                type="button"
+              >
+                Enregistrer
+              </button>
+              <button
+                class="button button-danger button-small"
+                data-action="delete"
+                data-id="${escapeHtml(item.id)}"
+                type="button"
+              >
+                Supprimer
+              </button>
+            </div>
+          </td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  return renderAdminTable(
+    ["Inscrit", "Session", "Date", "Statut", "Actions"],
+    rows,
+  );
+}
+
+function renderAdminTable(headers, rowsHtml) {
+  return `
+    <div class="table-card admin-table-card">
+      <table>
+        <thead>
+          <tr>${headers.map((headerItem) => `<th>${headerItem}</th>`).join("")}</tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderAdminEmptyState(text) {
+  return `
+    <div class="empty-state admin-empty-state">
+      <span class="subtle-badge">Vide</span>
+      <p>${text}</p>
+    </div>
+  `;
+}
+
+function renderAdminErrorState(text) {
+  return `
+    <div class="empty-state admin-empty-state">
+      <span class="subtle-badge">Erreur</span>
+      <p>${text}</p>
+    </div>
+  `;
+}
+
+function renderAdminRowActions(recordId) {
+  return `
+    <div class="admin-row-actions">
+      <button
+        class="button button-ghost button-small"
+        data-action="edit"
+        data-id="${escapeHtml(recordId)}"
+        type="button"
+      >
+        Modifier
+      </button>
+      <button
+        class="button button-danger button-small"
+        data-action="delete"
+        data-id="${escapeHtml(recordId)}"
+        type="button"
+      >
+        Supprimer
+      </button>
+    </div>
+  `;
+}
+
+function renderAdminTagList(items) {
+  if (!items.length) {
+    return `<span class="admin-cell-meta">Aucun module lié</span>`;
+  }
+
+  return `
+    <div class="admin-badge-list">
+      ${items.map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join("")}
+    </div>
+  `;
+}
+
+function renderSessionModuleOptions(selectedIds = []) {
+  if (!adminState.modules.length) {
+    return `<p class="admin-helper-text">Aucun module disponible pour le moment.</p>`;
+  }
+
+  const normalizedSelection = selectedIds.map(String);
+
+  return adminState.modules
+    .map(
+      (moduleItem) => `
+        <label class="admin-checkbox-option">
+          <input
+            type="checkbox"
+            name="module_ids"
+            value="${escapeHtml(moduleItem.id)}"
+            ${normalizedSelection.includes(String(moduleItem.id)) ? "checked" : ""}
+          />
+          <span>${escapeHtml(moduleItem.title)}</span>
+        </label>
+      `,
+    )
+    .join("");
+}
+
+function renderRegistrationStatusOptions(currentStatus) {
+  const statuses = registrationStatusOptions.includes(currentStatus)
+    ? registrationStatusOptions
+    : [...registrationStatusOptions, currentStatus].filter(Boolean);
+
+  return statuses
+    .map(
+      (status) => `
+        <option value="${escapeHtml(status)}" ${status === currentStatus ? "selected" : ""}>
+          ${escapeHtml(status)}
+        </option>
+      `,
+    )
+    .join("");
+}
+
+function renderAdminMetrics() {
+  if (!adminDom?.metrics) {
+    return;
+  }
+
+  if (adminDom.metrics.inventory) {
+    adminDom.metrics.inventory.textContent = formatAdminCount(
+      adminState.inventory.length,
+      "ligne d’inventaire",
+      "lignes d’inventaire",
+    );
+  }
+
+  if (adminDom.metrics.needs) {
+    adminDom.metrics.needs.textContent = formatAdminCount(
+      adminState.neededEquipment.length,
+      "besoin matériel",
+      "besoins matériels",
+    );
+  }
+
+  if (adminDom.metrics.events) {
+    adminDom.metrics.events.textContent = formatAdminCount(
+      adminState.events.length,
+      "événement publié",
+      "événements publiés",
+    );
+  }
+
+  if (adminDom.metrics.registrations) {
+    adminDom.metrics.registrations.textContent = formatAdminCount(
+      adminState.registrations.length,
+      "inscription",
+      "inscriptions",
+    );
+  }
+}
+
+async function handleInventoryFormSubmit(event) {
+  event.preventDefault();
+
+  const section = adminDom?.inventory;
+  if (!section?.form || !section.submit) {
+    return;
+  }
+
+  const payload = {
+    item_name: section.itemName?.value.trim() ?? "",
+    internal_id: normalizeOptionalString(section.internalId?.value),
+    category: normalizeOptionalString(section.category?.value),
+    quantity: Number(section.quantity?.value ?? 0),
+    condition: normalizeOptionalString(section.condition?.value),
+    location: normalizeOptionalString(section.location?.value),
+  };
+
+  if (!payload.item_name || !Number.isFinite(payload.quantity)) {
+    setAdminMessage(section.formMessage, "error", "Complétez au minimum le nom et la quantité.");
+    return;
+  }
+
+  const isEditing = Boolean(section.id?.value);
+  section.submit.disabled = true;
+
+  const query = isEditing
+    ? supabase.from("inventory").update(payload).eq("id", section.id.value)
+    : supabase.from("inventory").insert([payload]);
+  const { error } = await query;
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible d’enregistrer cet item.",
+    );
+    section.submit.disabled = false;
+    return;
+  }
+
+  resetInventoryForm({ keepMessage: true });
+  setAdminMessage(
+    section.formMessage,
+    "success",
+    isEditing ? "Item mis à jour." : "Item ajouté à l’inventaire.",
+  );
+  section.submit.disabled = false;
+  await refreshInventorySection();
+}
+
+async function handleNeededEquipmentFormSubmit(event) {
+  event.preventDefault();
+
+  const section = adminDom?.neededEquipment;
+  if (!section?.form || !section.submit) {
+    return;
+  }
+
+  const payload = {
+    item_name: section.itemName?.value.trim() ?? "",
+    category: normalizeOptionalString(section.category?.value),
+    quantity_needed: Number(section.quantity?.value ?? 0),
+    priority: normalizeOptionalString(section.priority?.value),
+    status: normalizeOptionalString(section.status?.value),
+    note: normalizeOptionalString(section.note?.value),
+  };
+
+  if (!payload.item_name || !Number.isFinite(payload.quantity_needed)) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      "Complétez au minimum le nom et la quantité voulue.",
+    );
+    return;
+  }
+
+  const isEditing = Boolean(section.id?.value);
+  section.submit.disabled = true;
+
+  const query = isEditing
+    ? supabase
+        .from("needed_equipment")
+        .update(payload)
+        .eq("id", section.id.value)
+    : supabase.from("needed_equipment").insert([payload]);
+  const { error } = await query;
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible d’enregistrer ce besoin matériel.",
+    );
+    section.submit.disabled = false;
+    return;
+  }
+
+  resetNeededEquipmentForm({ keepMessage: true });
+  setAdminMessage(
+    section.formMessage,
+    "success",
+    isEditing ? "Besoin mis à jour." : "Besoin matériel ajouté.",
+  );
+  section.submit.disabled = false;
+  await refreshNeededEquipmentSection();
+}
+
+async function handleEventAdminFormSubmit(event) {
+  event.preventDefault();
+
+  const section = adminDom?.events;
+  if (!section?.form || !section.submit) {
+    return;
+  }
+
+  const payload = {
+    title: section.title?.value.trim() ?? "",
+    short_description: section.shortDescription?.value.trim() ?? "",
+    description: normalizeOptionalString(section.description?.value),
+    event_date: section.date?.value ?? "",
+    start_time: normalizeOptionalString(section.startTime?.value),
+    end_time: normalizeOptionalString(section.endTime?.value),
+    location: normalizeOptionalString(section.location?.value),
+    image_url: normalizeOptionalString(section.imageUrl?.value),
+  };
+
+  if (!payload.title || !payload.short_description || !payload.event_date) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      "Renseignez au minimum le titre, le résumé et la date.",
+    );
+    return;
+  }
+
+  const isEditing = Boolean(section.id?.value);
+  section.submit.disabled = true;
+
+  const query = isEditing
+    ? supabase.from("events").update(payload).eq("id", section.id.value)
+    : supabase.from("events").insert([payload]);
+  const { error } = await query;
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible d’enregistrer cet événement.",
+    );
+    section.submit.disabled = false;
+    return;
+  }
+
+  resetEventsAdminForm({ keepMessage: true });
+  setAdminMessage(
+    section.formMessage,
+    "success",
+    isEditing ? "Événement mis à jour." : "Événement ajouté.",
+  );
+  section.submit.disabled = false;
+  await refreshEventsAdminSection();
+}
+
+async function handleSessionsAdminFormSubmit(event) {
+  event.preventDefault();
+
+  const section = adminDom?.sessions;
+  if (!section?.form || !section.submit) {
+    return;
+  }
+
+  const selectedModuleIds = getSelectedSessionModuleIds();
+  const payload = {
+    title: section.title?.value.trim() ?? "",
+    session_date: section.date?.value ?? "",
+    start_time: normalizeOptionalString(section.startTime?.value),
+    end_time: normalizeOptionalString(section.endTime?.value),
+    level: normalizeOptionalString(section.level?.value),
+    seats_total: normalizeOptionalNumber(section.seatsTotal?.value),
+    notes: normalizeOptionalString(section.notes?.value),
+  };
+
+  if (!payload.title || !payload.session_date) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      "Renseignez au minimum le titre et la date de session.",
+    );
+    return;
+  }
+
+  if (!selectedModuleIds.length) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      "Sélectionnez au moins un module lié à la session.",
+    );
+    return;
+  }
+
+  section.submit.disabled = true;
+
+  const sessionId = section.id?.value || null;
+  let targetSessionId = sessionId;
+
+  if (sessionId) {
+    const { error } = await supabase
+      .from("sessions")
+      .update(payload)
+      .eq("id", sessionId);
+
+    if (error) {
+      setAdminMessage(
+        section.formMessage,
+        "error",
+        error.message || "Impossible de mettre à jour cette session.",
+      );
+      section.submit.disabled = false;
+      return;
+    }
+  } else {
+    const { data, error } = await supabase
+      .from("sessions")
+      .insert([payload])
+      .select("id")
+      .single();
+
+    if (error || !data?.id) {
+      setAdminMessage(
+        section.formMessage,
+        "error",
+        error?.message || "Impossible de créer cette session.",
+      );
+      section.submit.disabled = false;
+      return;
+    }
+
+    targetSessionId = data.id;
+  }
+
+  const { error: deleteLinksError } = await supabase
+    .from("session_modules")
+    .delete()
+    .eq("session_id", targetSessionId);
+
+  if (deleteLinksError) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      deleteLinksError.message || "Impossible de synchroniser les modules liés.",
+    );
+    section.submit.disabled = false;
+    return;
+  }
+
+  const linksPayload = selectedModuleIds.map((moduleId) => ({
+    session_id: targetSessionId,
+    module_id: moduleId,
+  }));
+
+  const { error: insertLinksError } = await supabase
+    .from("session_modules")
+    .insert(linksPayload);
+
+  if (insertLinksError) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      insertLinksError.message || "Impossible d’enregistrer les modules liés.",
+    );
+    section.submit.disabled = false;
+    return;
+  }
+
+  resetSessionsAdminForm({ keepMessage: true });
+  setAdminMessage(
+    section.formMessage,
+    "success",
+    sessionId ? "Session mise à jour." : "Session créée.",
+  );
+  section.submit.disabled = false;
+
+  await Promise.all([refreshSessionsAdminSection(), refreshRegistrationsAdminSection()]);
+}
+
+function populateInventoryForm(recordId) {
+  const section = adminDom?.inventory;
+  const record = findAdminRecordById(adminState.inventory, recordId);
+
+  if (!section || !record) {
+    return;
+  }
+
+  section.id.value = record.id;
+  section.itemName.value = record.itemName;
+  section.internalId.value = record.internalId;
+  section.category.value = record.category;
+  section.quantity.value = String(record.quantity ?? 0);
+  section.condition.value = record.condition;
+  section.location.value = record.location;
+  updateAdminFormMode("inventory", adminFormLabels.inventory);
+  setAdminMessage(section.formMessage, "success", "Mode modification activé.");
+}
+
+function populateNeededEquipmentForm(recordId) {
+  const section = adminDom?.neededEquipment;
+  const record = findAdminRecordById(adminState.neededEquipment, recordId);
+
+  if (!section || !record) {
+    return;
+  }
+
+  section.id.value = record.id;
+  section.itemName.value = record.itemName;
+  section.category.value = record.category;
+  section.quantity.value = String(record.quantityNeeded ?? 0);
+  section.priority.value = record.priority;
+  section.status.value = record.status;
+  section.note.value = record.note;
+  updateAdminFormMode("needed-equipment", adminFormLabels.neededEquipment);
+  setAdminMessage(section.formMessage, "success", "Mode modification activé.");
+}
+
+function populateEventsAdminForm(recordId) {
+  const section = adminDom?.events;
+  const record = findAdminRecordById(adminState.events, recordId);
+
+  if (!section || !record) {
+    return;
+  }
+
+  section.id.value = record.id;
+  section.title.value = record.title;
+  section.shortDescription.value = record.shortDescription;
+  section.description.value = record.description;
+  section.date.value = record.eventDate;
+  section.startTime.value = record.startTime;
+  section.endTime.value = record.endTime;
+  section.location.value = record.location;
+  section.imageUrl.value = record.imageUrl;
+  updateAdminFormMode("events-admin", adminFormLabels.event);
+  setAdminMessage(section.formMessage, "success", "Mode modification activé.");
+}
+
+function populateSessionsAdminForm(recordId) {
+  const section = adminDom?.sessions;
+  const record = findAdminRecordById(adminState.sessions, recordId);
+
+  if (!section || !record) {
+    return;
+  }
+
+  section.id.value = record.id;
+  section.title.value = record.title;
+  section.date.value = record.sessionDate;
+  section.startTime.value = record.startTime;
+  section.endTime.value = record.endTime;
+  section.level.value = record.level;
+  section.seatsTotal.value = record.seatsTotal ?? "";
+  section.notes.value = record.notes;
+  section.moduleOptions.innerHTML = renderSessionModuleOptions(record.moduleIds);
+  updateAdminFormMode("sessions-admin", adminFormLabels.session);
+  setAdminMessage(section.formMessage, "success", "Mode modification activé.");
+}
+
+function resetInventoryForm({ keepMessage = false } = {}) {
+  const section = adminDom?.inventory;
+  if (!section?.form || !section.id) {
+    return;
+  }
+
+  section.form.reset();
+  section.id.value = "";
+  updateAdminFormMode("inventory", adminFormLabels.inventory);
+
+  if (!keepMessage) {
+    setAdminMessage(section.formMessage);
+  }
+}
+
+function resetNeededEquipmentForm({ keepMessage = false } = {}) {
+  const section = adminDom?.neededEquipment;
+  if (!section?.form || !section.id) {
+    return;
+  }
+
+  section.form.reset();
+  section.id.value = "";
+  updateAdminFormMode("needed-equipment", adminFormLabels.neededEquipment);
+
+  if (!keepMessage) {
+    setAdminMessage(section.formMessage);
+  }
+}
+
+function resetEventsAdminForm({ keepMessage = false } = {}) {
+  const section = adminDom?.events;
+  if (!section?.form || !section.id) {
+    return;
+  }
+
+  section.form.reset();
+  section.id.value = "";
+  updateAdminFormMode("events-admin", adminFormLabels.event);
+
+  if (!keepMessage) {
+    setAdminMessage(section.formMessage);
+  }
+}
+
+function resetSessionsAdminForm({ keepMessage = false } = {}) {
+  const section = adminDom?.sessions;
+  if (!section?.form || !section.id) {
+    return;
+  }
+
+  section.form.reset();
+  section.id.value = "";
+  section.moduleOptions.innerHTML = renderSessionModuleOptions([]);
+  updateAdminFormMode("sessions-admin", adminFormLabels.session);
+
+  if (!keepMessage) {
+    setAdminMessage(section.formMessage);
+  }
+}
+
+async function deleteInventoryRecord(recordId, button) {
+  const section = adminDom?.inventory;
+  const record = findAdminRecordById(adminState.inventory, recordId);
+
+  if (!section || !record || !window.confirm(`Supprimer ${record.itemName} de l’inventaire ?`)) {
+    return;
+  }
+
+  button.disabled = true;
+  const { error } = await supabase.from("inventory").delete().eq("id", recordId);
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible de supprimer cet item.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  if (section.id.value === String(recordId)) {
+    resetInventoryForm();
+  }
+
+  setAdminMessage(section.formMessage, "success", "Item supprimé.");
+  await refreshInventorySection();
+}
+
+async function deleteNeededEquipmentRecord(recordId, button) {
+  const section = adminDom?.neededEquipment;
+  const record = findAdminRecordById(adminState.neededEquipment, recordId);
+
+  if (!section || !record || !window.confirm(`Supprimer ${record.itemName} de la liste des besoins ?`)) {
+    return;
+  }
+
+  button.disabled = true;
+  const { error } = await supabase
+    .from("needed_equipment")
+    .delete()
+    .eq("id", recordId);
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible de supprimer ce besoin.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  if (section.id.value === String(recordId)) {
+    resetNeededEquipmentForm();
+  }
+
+  setAdminMessage(section.formMessage, "success", "Besoin supprimé.");
+  await refreshNeededEquipmentSection();
+}
+
+async function deleteEventAdminRecord(recordId, button) {
+  const section = adminDom?.events;
+  const record = findAdminRecordById(adminState.events, recordId);
+
+  if (!section || !record || !window.confirm(`Supprimer l’événement ${record.title} ?`)) {
+    return;
+  }
+
+  button.disabled = true;
+  const { error } = await supabase.from("events").delete().eq("id", recordId);
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible de supprimer cet événement.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  if (section.id.value === String(recordId)) {
+    resetEventsAdminForm();
+  }
+
+  setAdminMessage(section.formMessage, "success", "Événement supprimé.");
+  await refreshEventsAdminSection();
+}
+
+async function deleteSessionsAdminRecord(recordId, button) {
+  const section = adminDom?.sessions;
+  const record = findAdminRecordById(adminState.sessions, recordId);
+
+  if (!section || !record || !window.confirm(`Supprimer la session ${record.title} ?`)) {
+    return;
+  }
+
+  button.disabled = true;
+  const { error } = await supabase.from("sessions").delete().eq("id", recordId);
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible de supprimer cette session.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  if (section.id.value === String(recordId)) {
+    resetSessionsAdminForm();
+  }
+
+  setAdminMessage(section.formMessage, "success", "Session supprimée.");
+  await Promise.all([refreshSessionsAdminSection(), refreshRegistrationsAdminSection()]);
+}
+
+async function updateRegistrationStatus(recordId, button) {
+  const section = adminDom?.registrations;
+  const selectNode = section?.list?.querySelector(
+    `[data-registration-id="${CSS.escape(String(recordId))}"]`,
+  );
+
+  if (!section || !selectNode) {
+    return;
+  }
+
+  button.disabled = true;
+  setAdminMessage(section.message);
+
+  const { error } = await supabase
+    .from("registrations")
+    .update({ status: selectNode.value })
+    .eq("id", recordId);
+
+  if (error) {
+    setAdminMessage(
+      section.message,
+      "error",
+      error.message || "Impossible de mettre à jour le statut.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  setAdminMessage(section.message, "success", "Statut mis à jour.");
+  await Promise.all([refreshRegistrationsAdminSection(), refreshSessionsAdminSection()]);
+}
+
+async function deleteRegistrationRecord(recordId, button) {
+  const section = adminDom?.registrations;
+  const record = findAdminRecordById(adminState.registrations, recordId);
+
+  if (
+    !section ||
+    !record ||
+    !window.confirm(
+      `Supprimer l’inscription de ${record.firstName} ${record.lastName} pour ${record.sessionTitle} ?`,
+    )
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+
+  const { error } = await supabase.from("registrations").delete().eq("id", recordId);
+
+  if (error) {
+    setAdminMessage(
+      section.message,
+      "error",
+      error.message || "Impossible de supprimer cette inscription.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  setAdminMessage(section.message, "success", "Inscription supprimée.");
+  await Promise.all([refreshRegistrationsAdminSection(), refreshSessionsAdminSection()]);
+}
+
+function normalizeInventoryRecord(item) {
+  return {
+    id: item.id,
+    itemName: item.item_name ?? item.name ?? "",
+    internalId: item.internal_id ?? "",
+    category: item.category ?? "",
+    quantity: normalizeOptionalNumber(item.quantity) ?? 0,
+    condition: item.condition ?? "",
+    location: item.location ?? "",
+  };
+}
+
+function normalizeNeededEquipmentRecord(item) {
+  return {
+    id: item.id,
+    itemName: item.item_name ?? item.name ?? "",
+    category: item.category ?? "",
+    quantityNeeded: normalizeOptionalNumber(item.quantity_needed ?? item.wanted) ?? 0,
+    priority: item.priority ?? "",
+    status: item.status ?? "",
+    note: item.note ?? "",
+  };
+}
+
+function normalizeAdminEventRecord(item) {
+  const startTime = item.start_time ?? item.startTime ?? "";
+  const endTime = item.end_time ?? item.endTime ?? "";
+
+  return {
+    id: item.id,
+    title: item.title ?? "",
+    shortDescription: item.short_description ?? item.description ?? "",
+    description: item.description ?? "",
+    eventDate: item.event_date ?? item.date ?? "",
+    startTime,
+    endTime,
+    timeRange: formatTimeRange(startTime, endTime),
+    location: item.location ?? "",
+    imageUrl: item.image_url ?? "",
+  };
+}
+
+function normalizeAdminModuleRecord(item) {
+  return {
+    id: item.id,
+    title: item.title ?? item.name ?? `Module ${item.id}`,
+  };
+}
+
+function normalizeSessionModuleLink(item) {
+  return {
+    sessionId: item.session_id,
+    moduleId: item.module_id,
+  };
+}
+
+function normalizeAdminSessionRecord(session) {
+  const normalized = normalizeSession(session);
+
+  return {
+    id: normalized.id,
+    title: session.title ?? normalized.title,
+    sessionDate: session.session_date ?? session.date ?? "",
+    startTime: session.start_time ?? session.startTime ?? "",
+    endTime: session.end_time ?? session.endTime ?? "",
+    timeRange: normalized.timeRange,
+    level: session.level ?? normalized.level,
+    seatsTotal: normalizeOptionalNumber(session.seats_total ?? session.total_seats),
+    seatsRemaining: normalized.seatsRemaining,
+    modules: normalized.modules,
+    notes: session.notes ?? normalized.notes ?? "",
+  };
+}
+
+function attachSessionModuleIds(sessionRecord) {
+  return {
+    ...sessionRecord,
+    moduleIds: adminState.sessionModules
+      .filter((item) => String(item.sessionId) === String(sessionRecord.id))
+      .map((item) => String(item.moduleId)),
+  };
+}
+
+function normalizeAdminRegistrationRecord(item) {
+  const createdSource =
+    item.created_at ?? item.registration_created_at ?? item.inserted_at ?? null;
+
+  return {
+    id: item.registration_id ?? item.id,
+    firstName: item.first_name ?? "",
+    lastName: item.last_name ?? "",
+    email: item.email ?? "",
+    login42: item.login_42 ?? "",
+    status: item.status ?? "registered",
+    sessionTitle: item.session_title ?? item.title ?? "Session",
+    sessionDate: item.session_date ?? item.date ?? "",
+    createdLabel: createdSource ? formatSafeDateTime(createdSource) : "Date non disponible",
+  };
+}
+
+function updateAdminFormMode(sectionId, copy) {
+  const titleNode = document.getElementById(`${sectionId}-form-title`);
+  const submitButton = document.getElementById(`${sectionId}-submit`);
+  const cancelButton = document.getElementById(`${sectionId}-cancel-edit`);
+  const hiddenInput = document.getElementById(`${sectionId}-id`);
+  const isEditing = Boolean(hiddenInput?.value);
+
+  if (titleNode) {
+    titleNode.textContent = isEditing ? copy.editTitle : copy.createTitle;
+  }
+
+  if (submitButton) {
+    submitButton.textContent = isEditing ? copy.editButton : copy.createButton;
+  }
+
+  if (cancelButton) {
+    cancelButton.classList.toggle("is-hidden", !isEditing);
+  }
+}
+
+function setAdminMessage(node, state, text) {
+  if (!node) {
+    return;
+  }
+
+  node.textContent = text ?? "";
+
+  if (state && text) {
+    node.dataset.state = state;
+    return;
+  }
+
+  delete node.dataset.state;
+}
+
+function findAdminRecordById(collection, recordId) {
+  return collection.find((item) => String(item.id) === String(recordId));
+}
+
+function formatAdminCount(count, singular, plural) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function getSelectedSessionModuleIds() {
+  const section = adminDom?.sessions;
+
+  if (!section?.moduleOptions) {
+    return [];
+  }
+
+  return Array.from(
+    section.moduleOptions.querySelectorAll('input[name="module_ids"]:checked'),
+  ).map((input) => input.value);
+}
+
+function normalizeOptionalString(value) {
+  const trimmed = String(value ?? "").trim();
+  return trimmed ? trimmed : null;
+}
+
+function formatSafeDate(value) {
+  return value ? formatDate(value) : "Date à confirmer";
+}
+
+function formatSafeDateTime(value) {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Date non disponible";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(parsed);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function moduleLink(moduleId) {
@@ -1510,33 +3497,35 @@ async function hydrateAdminPage() {
 
   const userEmail = session.user?.email ?? "Administrateur connecté";
   content.innerHTML = renderAdminPage(userEmail);
+  cacheAdminDom();
+  bindAdminDashboardInteractions();
 
   const logoutButton = document.getElementById("admin-logout-button");
   const logoutMessage = document.getElementById("admin-logout-message");
 
-  if (!logoutButton || !logoutMessage) {
-    return;
+  if (logoutButton && logoutMessage) {
+    logoutButton.addEventListener("click", async () => {
+      logoutButton.disabled = true;
+      logoutButton.textContent = "Déconnexion...";
+      logoutMessage.textContent = "";
+      delete logoutMessage.dataset.state;
+
+      const { error: signOutError } = await supabase.auth.signOut();
+
+      if (signOutError) {
+        logoutMessage.dataset.state = "error";
+        logoutMessage.textContent =
+          signOutError.message || "La déconnexion a échoué. Réessayez.";
+        logoutButton.disabled = false;
+        logoutButton.textContent = "Se déconnecter";
+        return;
+      }
+
+      logoutMessage.dataset.state = "success";
+      logoutMessage.textContent = "Déconnexion en cours...";
+      window.location.href = routeMap.adminLogin;
+    });
   }
 
-  logoutButton.addEventListener("click", async () => {
-    logoutButton.disabled = true;
-    logoutButton.textContent = "Déconnexion...";
-    logoutMessage.textContent = "";
-    delete logoutMessage.dataset.state;
-
-    const { error: signOutError } = await supabase.auth.signOut();
-
-    if (signOutError) {
-      logoutMessage.dataset.state = "error";
-      logoutMessage.textContent =
-        signOutError.message || "La déconnexion a échoué. Réessayez.";
-      logoutButton.disabled = false;
-      logoutButton.textContent = "Se déconnecter";
-      return;
-    }
-
-    logoutMessage.dataset.state = "success";
-    logoutMessage.textContent = "Déconnexion en cours...";
-    window.location.href = routeMap.adminLogin;
-  });
+  await initializeAdminDashboard();
 }
