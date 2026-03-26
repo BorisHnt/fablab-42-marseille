@@ -537,6 +537,14 @@ p {
   font-size: 0.92rem;
 }
 
+.admin-login-message[data-state="error"] {
+  color: #8b4b44;
+}
+
+.admin-login-message[data-state="success"] {
+  color: #355c4b;
+}
+
 .info-card {
   display: grid;
   gap: 1rem;

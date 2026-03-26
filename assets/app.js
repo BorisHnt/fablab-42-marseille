@@ -46,6 +46,7 @@ hydrateHomeEventsSection();
 hydrateSessionsPage();
 hydrateRegistrationPage();
 hydrateModuleDetailSessions();
+hydrateAdminLoginPage();
 
 function renderShell() {
   const activeKey = pageParent[page] ?? page;
@@ -574,9 +575,11 @@ function renderAdminLoginPage() {
                 required
               />
             </label>
-            <button class="button button-primary" type="submit">Se connecter</button>
+            <button class="button button-primary" id="admin-login-submit" type="submit">
+              Se connecter
+            </button>
             <p id="admin-login-message" class="admin-login-message">
-              Connexion non branchée pour le moment.
+              Utilisez vos identifiants administrateur.
             </p>
           </form>
         </div>
@@ -1392,4 +1395,50 @@ async function hydrateModuleDetailSessions() {
   }
 
   sessionsList.innerHTML = matchingSessions.map(renderModuleSessionItem).join("");
+}
+
+async function hydrateAdminLoginPage() {
+  if (page !== "admin-login") {
+    return;
+  }
+
+  const formNode = document.getElementById("admin-login-form");
+  const emailInput = document.getElementById("admin-email");
+  const passwordInput = document.getElementById("admin-password");
+  const messageNode = document.getElementById("admin-login-message");
+  const submitButton = document.getElementById("admin-login-submit");
+
+  if (!formNode || !emailInput || !passwordInput || !messageNode || !submitButton) {
+    return;
+  }
+
+  formNode.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Connexion en cours...";
+    messageNode.textContent = "";
+    delete messageNode.dataset.state;
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      messageNode.dataset.state = "error";
+      messageNode.textContent = error.message || "Connexion impossible.";
+      submitButton.disabled = false;
+      submitButton.textContent = "Se connecter";
+      return;
+    }
+
+    console.log("admin login data:", data);
+    messageNode.dataset.state = "success";
+    messageNode.textContent = "Connexion réussie. Redirection...";
+    window.location.href = routeMap.admin;
+  });
 }
