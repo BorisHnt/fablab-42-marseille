@@ -744,6 +744,23 @@ p {
   background: var(--white);
 }
 
+.admin-module-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-module-card {
+  gap: 0.9rem;
+}
+
+.admin-module-card .card-topline {
+  align-items: center;
+}
+
+.admin-module-preview {
+  color: rgba(31, 35, 37, 0.72);
+}
+
 .admin-empty-state {
   align-items: start;
 }
@@ -786,6 +803,18 @@ p {
   width: fit-content;
   max-width: 100%;
   justify-self: start;
+  align-self: start;
+}
+
+.registration-summary .category-badge,
+.registration-summary .subtle-badge {
+  padding: 0.38rem 0.72rem;
+  font-size: 0.8rem;
+}
+
+.registration-summary .button {
+  min-height: 2.7rem;
+  padding: 0.72rem 1.05rem;
 }
 
 .info-card {
@@ -1118,6 +1147,10 @@ tr:last-child td {
   }
 
   .admin-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-module-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

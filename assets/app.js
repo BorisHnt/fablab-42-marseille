@@ -1,8 +1,5 @@
 import {
-  events,
-  highlights,
   modules,
-  sessions,
 } from "./data.js";
 import { supabase } from "./supabase-client.js";
 
@@ -56,6 +53,12 @@ const adminFormLabels = {
     createButton: "Publier l’événement",
     editButton: "Enregistrer les changements",
   },
+  module: {
+    createTitle: "Ajouter un module",
+    editTitle: "Modifier un module",
+    createButton: "Ajouter le module",
+    editButton: "Enregistrer les changements",
+  },
   session: {
     createTitle: "Ajouter une session",
     editTitle: "Modifier une session",
@@ -92,7 +95,7 @@ renderPage();
 bindInteractions();
 hydrateAuthNavigation();
 hydrateEventsPage();
-hydrateHomeEventsSection();
+hydrateHomePageData();
 hydrateSessionsPage();
 hydrateRegistrationPage();
 hydrateModuleDetailSessions();
@@ -208,8 +211,6 @@ function renderPage() {
 }
 
 function renderHomePage() {
-  const featuredEvent = events[0];
-
   return `
     <div class="page-flow">
       <section class="hero-card animate-rise">
@@ -231,27 +232,12 @@ function renderHomePage() {
         </div>
 
         <div class="hero-visual">
-          <article class="hero-panel hero-panel-primary">
-            <div class="hero-panel-header">
-              <span>Prochain événement</span>
-              <span>→</span>
-            </div>
-            <h3>${featuredEvent.title}</h3>
-            <p>${featuredEvent.description}</p>
-            <div class="hero-event-date">${formatShortDate(featuredEvent.date)}</div>
-          </article>
+          <div id="home-featured-event">
+            ${renderHomeFeaturedEventLoadingState()}
+          </div>
 
-          <div class="hero-stack">
-            ${modules
-              .map(
-                (module) => `
-                  <article class="hero-panel hero-panel-mini">
-                    <span>${module.title}</span>
-                    <p>${module.shortText}</p>
-                  </article>
-                `,
-              )
-              .join("")}
+          <div class="hero-stack" id="home-hero-modules">
+            ${renderHomeHeroModulesLoadingState()}
           </div>
         </div>
       </section>
@@ -276,8 +262,8 @@ function renderHomePage() {
           "Deux portes d’entrée pour commencer",
           "Le parcours démarre avec des bases claires, un rythme doux, et des objectifs immédiatement concrets.",
         )}
-        <div class="card-grid two-columns">
-          ${modules.map(renderModuleCard).join("")}
+        <div class="card-grid two-columns" id="home-modules-grid">
+          ${renderHomeModulesLoadingState()}
         </div>
       </section>
 
@@ -290,20 +276,8 @@ function renderHomePage() {
           )}
           <a class="button button-secondary" href="${routeMap.sessions}">Consulter les prochaines sessions</a>
         </div>
-        <div class="feature-list">
-          ${highlights
-            .map(
-              (item, index) => `
-                <article class="feature-item">
-                  <div class="feature-index">0${index + 1}</div>
-                  <div>
-                    <h3>${item.title}</h3>
-                    <p>${item.text}</p>
-                  </div>
-                </article>
-              `,
-            )
-            .join("")}
+        <div class="feature-list" id="home-highlights-grid">
+          ${renderHomeHighlightsLoadingState()}
         </div>
       </section>
 
@@ -313,18 +287,14 @@ function renderHomePage() {
           "Le site met en avant l’activité réelle du fablab",
           "Sessions, événements et fonctionnement sont déjà organisés pour accueillir plus tard une vraie logique d’inscription.",
         )}
-        <div class="metrics-grid">
+        <div class="metrics-grid" id="home-metrics-grid">
           <article class="metric-card">
-            <strong>${sessions.length} sessions à venir</strong>
-            <span>Une interface déjà prête pour réserver une place.</span>
+            <strong>Chargement des données</strong>
+            <span>Les informations réelles du fablab sont en cours de récupération.</span>
           </article>
           <article class="metric-card">
-            <strong>Admin crédible</strong>
-            <span>Inventaire et besoins matériels visibles dès maintenant.</span>
-          </article>
-          <article class="metric-card">
-            <strong>Design aéré</strong>
-            <span>Une identité douce, éditoriale et chaleureuse sur mobile comme desktop.</span>
+            <strong>Chargement des modules</strong>
+            <span>Les portes d’entrée pédagogiques sont en cours de lecture.</span>
           </article>
         </div>
         <div class="section-action">
@@ -879,6 +849,18 @@ function renderAdminPage(userEmail = "") {
       })}
 
       ${renderAdminCrudSection({
+        sectionId: "modules-admin",
+        eyebrow: "Modules",
+        title: "Modules disponibles",
+        text: "Gérez le catalogue pédagogique du fablab avec une fiche claire pour chaque module publié.",
+        formTitle: "Ajouter un module",
+        listTitle: "Catalogue des modules",
+        loadingText: "Chargement des modules...",
+        formMarkup: renderModulesAdminForm(),
+        sectionClassName: "section-card-soft",
+      })}
+
+      ${renderAdminCrudSection({
         sectionId: "sessions-admin",
         eyebrow: "Sessions",
         title: "Sessions de cours",
@@ -1118,6 +1100,61 @@ function renderEventsAdminForm() {
   `;
 }
 
+function renderModulesAdminForm() {
+  return `
+    <form class="signup-form admin-form" id="modules-admin-form">
+      <input id="modules-admin-id" name="id" type="hidden" />
+      <div class="admin-field-grid">
+        <label for="modules-admin-title">
+          Titre
+          <input id="modules-admin-title" name="title" type="text" required />
+        </label>
+        <label for="modules-admin-slug">
+          Slug
+          <input id="modules-admin-slug" name="slug" type="text" required />
+        </label>
+      </div>
+      <label for="modules-admin-short-description">
+        Description courte
+        <textarea
+          id="modules-admin-short-description"
+          name="short_description"
+          rows="3"
+          required
+        ></textarea>
+      </label>
+      <label for="modules-admin-description">
+        Description
+        <textarea id="modules-admin-description" name="description" rows="5"></textarea>
+      </label>
+      <label for="modules-admin-objectives">
+        Objectifs
+        <textarea id="modules-admin-objectives" name="objectives" rows="4"></textarea>
+      </label>
+      <label for="modules-admin-prerequisites">
+        Prérequis
+        <textarea id="modules-admin-prerequisites" name="prerequisites" rows="3"></textarea>
+      </label>
+      <label for="modules-admin-materials">
+        Matériel
+        <textarea id="modules-admin-materials" name="materials" rows="4"></textarea>
+      </label>
+      <label for="modules-admin-duration">
+        Durée
+        <input id="modules-admin-duration" name="duration" type="text" />
+      </label>
+      <div class="admin-form-actions">
+        <button class="button button-primary" id="modules-admin-submit" type="submit">
+          Ajouter le module
+        </button>
+        <button class="button button-ghost is-hidden" id="modules-admin-cancel-edit" type="button">
+          Annuler
+        </button>
+      </div>
+    </form>
+  `;
+}
+
 function renderSessionsAdminForm() {
   return `
     <form class="signup-form admin-form" id="sessions-admin-form">
@@ -1299,6 +1336,8 @@ function renderNotFound() {
 }
 
 function renderModuleCard(module) {
+  const moduleFocus = Array.isArray(module.focus) ? module.focus : [];
+
   return `
     <a class="info-card module-card animate-rise" href="${moduleLink(module.id)}">
       <div class="card-topline">
@@ -1307,11 +1346,353 @@ function renderModuleCard(module) {
       </div>
       <h3>${module.title}</h3>
       <p>${module.shortText}</p>
-      <div class="tag-row">
-        ${module.focus.map((item) => `<span class="tag">${item}</span>`).join("")}
-      </div>
+      ${
+        moduleFocus.length
+          ? `<div class="tag-row">
+              ${moduleFocus.map((item) => `<span class="tag">${item}</span>`).join("")}
+            </div>`
+          : ""
+      }
       <p class="muted-text">${module.presentation}</p>
     </a>
+  `;
+}
+
+function renderHomeFeaturedEventLoadingState() {
+  return `
+    <article class="hero-panel hero-panel-primary">
+      <div class="hero-panel-header">
+        <span>Prochain événement</span>
+        <span>…</span>
+      </div>
+      <h3>Chargement de l’agenda</h3>
+      <p>Le prochain événement du fablab est en cours de récupération depuis Supabase.</p>
+      <div class="hero-event-date">À venir</div>
+    </article>
+  `;
+}
+
+function renderHomeFeaturedEvent(event) {
+  if (!event) {
+    return `
+      <article class="hero-panel hero-panel-primary">
+        <div class="hero-panel-header">
+          <span>Prochain événement</span>
+          <span>—</span>
+        </div>
+        <h3>Aucun événement publié pour le moment</h3>
+        <p>Le prochain rendez-vous du fablab apparaîtra ici dès sa publication.</p>
+        <div class="hero-event-date">Agenda</div>
+      </article>
+    `;
+  }
+
+  const normalizedEvent = normalizeEvent(event);
+
+  return `
+    <article class="hero-panel hero-panel-primary">
+      <div class="hero-panel-header">
+        <span>Prochain événement</span>
+        <span>→</span>
+      </div>
+      <h3>${normalizedEvent.title}</h3>
+      <p>${normalizedEvent.description}</p>
+      <div class="hero-event-date">${formatShortDate(normalizedEvent.date)}</div>
+    </article>
+  `;
+}
+
+function renderHomeHeroModulesLoadingState() {
+  return Array.from({ length: 2 })
+    .map(
+      () => `
+        <article class="hero-panel hero-panel-mini">
+          <span>Chargement</span>
+          <p>Les modules du fablab sont en cours de récupération.</p>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHomeHeroModules(modulesList) {
+  if (!modulesList.length) {
+    return `
+      <article class="hero-panel hero-panel-mini">
+        <span>Modules</span>
+        <p>Les modules publiés apparaîtront ici dès qu’ils seront disponibles.</p>
+      </article>
+    `;
+  }
+
+  return modulesList
+    .slice(0, 2)
+    .map(
+      (moduleItem) => `
+        <article class="hero-panel hero-panel-mini">
+          <span>${moduleItem.title}</span>
+          <p>${moduleItem.shortText}</p>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHomeModulesLoadingState() {
+  return Array.from({ length: 2 })
+    .map(
+      () => `
+        <article class="info-card module-card animate-rise">
+          <div class="card-topline">
+            <span class="eyebrow eyebrow-tight">Module</span>
+            <span>…</span>
+          </div>
+          <h3>Chargement du module</h3>
+          <p>Les informations du catalogue sont en cours de récupération.</p>
+          <p class="muted-text">Les contenus du fablab apparaîtront ici dès que la base répondra.</p>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHomeModulesEmptyState(text) {
+  return `
+    <article class="info-card module-card animate-rise">
+      <div class="card-topline">
+        <span class="eyebrow eyebrow-tight">Modules</span>
+        <span>—</span>
+      </div>
+      <h3>Catalogue indisponible</h3>
+      <p>${text}</p>
+      <p class="muted-text">Les modules publiés apparaîtront ici dès que les données seront disponibles.</p>
+    </article>
+  `;
+}
+
+function renderHomeHighlightsLoadingState() {
+  return Array.from({ length: 3 })
+    .map(
+      (_, index) => `
+        <article class="feature-item">
+          <div class="feature-index">0${index + 1}</div>
+          <div>
+            <h3>Chargement</h3>
+            <p>Lecture des indicateurs du fablab en cours.</p>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHomeFeatureItems(stats) {
+  const items = [
+    {
+      title: `${stats.moduleCount} module${stats.moduleCount === 1 ? "" : "s"} disponible${stats.moduleCount === 1 ? "" : "s"}`,
+      text: "Une base pédagogique visible et claire pour démarrer rapidement sur des sujets concrets.",
+    },
+    {
+      title: `${stats.sessionCount} session${stats.sessionCount === 1 ? "" : "s"} à venir`,
+      text: "Les prochaines dates restent directement lisibles depuis la base pour guider l’inscription.",
+    },
+    {
+      title: `${stats.eventCount} événement${stats.eventCount === 1 ? "" : "s"} publié${stats.eventCount === 1 ? "" : "s"}`,
+      text: "L’accueil reflète l’activité réelle du lieu avec un agenda mis à jour depuis Supabase.",
+    },
+  ];
+
+  return items
+    .map(
+      (item, index) => `
+        <article class="feature-item">
+          <div class="feature-index">0${index + 1}</div>
+          <div>
+            <h3>${item.title}</h3>
+            <p>${item.text}</p>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHomeMetrics(stats) {
+  return `
+    <article class="metric-card">
+      <strong>${stats.sessionCount} session${stats.sessionCount === 1 ? "" : "s"} à venir</strong>
+      <span>Des inscriptions réelles déjà prêtes à être consultées et réservées.</span>
+    </article>
+    <article class="metric-card">
+      <strong>${stats.moduleCount} module${stats.moduleCount === 1 ? "" : "s"} publié${stats.moduleCount === 1 ? "" : "s"}</strong>
+      <span>Le catalogue visible sur l’accueil vient directement de la base du fablab.</span>
+    </article>
+    <article class="metric-card">
+      <strong>${stats.eventCount} événement${stats.eventCount === 1 ? "" : "s"} planifié${stats.eventCount === 1 ? "" : "s"}</strong>
+      <span>L’agenda et le hero reflètent maintenant les données réelles de Supabase.</span>
+    </article>
+  `;
+}
+
+function renderHomeFeaturedEventLoadingState() {
+  return `
+    <article class="hero-panel hero-panel-primary">
+      <div class="hero-panel-header">
+        <span>Prochain événement</span>
+        <span>…</span>
+      </div>
+      <h3>Chargement de l’agenda</h3>
+      <p>Le prochain événement du fablab est en cours de récupération depuis Supabase.</p>
+      <div class="hero-event-date">À venir</div>
+    </article>
+  `;
+}
+
+function renderHomeFeaturedEvent(event) {
+  if (!event) {
+    return `
+      <article class="hero-panel hero-panel-primary">
+        <div class="hero-panel-header">
+          <span>Prochain événement</span>
+          <span>—</span>
+        </div>
+        <h3>Aucun événement publié pour le moment</h3>
+        <p>Le prochain rendez-vous du fablab apparaîtra ici dès sa publication.</p>
+        <div class="hero-event-date">Agenda</div>
+      </article>
+    `;
+  }
+
+  const normalizedEvent = normalizeEvent(event);
+
+  return `
+    <article class="hero-panel hero-panel-primary">
+      <div class="hero-panel-header">
+        <span>Prochain événement</span>
+        <span>→</span>
+      </div>
+      <h3>${normalizedEvent.title}</h3>
+      <p>${normalizedEvent.description}</p>
+      <div class="hero-event-date">${formatShortDate(normalizedEvent.date)}</div>
+    </article>
+  `;
+}
+
+function renderHomeHeroModulesLoadingState() {
+  return Array.from({ length: 2 })
+    .map(
+      () => `
+        <article class="hero-panel hero-panel-mini">
+          <span>Chargement</span>
+          <p>Les modules du fablab sont en cours de récupération.</p>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHomeHeroModules(modulesList) {
+  if (!modulesList.length) {
+    return `
+      <article class="hero-panel hero-panel-mini">
+        <span>Modules</span>
+        <p>Les modules publiés apparaîtront ici dès qu’ils seront disponibles.</p>
+      </article>
+    `;
+  }
+
+  return modulesList
+    .slice(0, 2)
+    .map(
+      (moduleItem) => `
+        <article class="hero-panel hero-panel-mini">
+          <span>${moduleItem.title}</span>
+          <p>${moduleItem.shortText}</p>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHomeModulesLoadingState() {
+  return Array.from({ length: 2 })
+    .map(
+      () => `
+        <article class="info-card module-card animate-rise">
+          <div class="card-topline">
+            <span class="eyebrow eyebrow-tight">Module</span>
+            <span>…</span>
+          </div>
+          <h3>Chargement du module</h3>
+          <p>Les informations du catalogue sont en cours de récupération.</p>
+          <p class="muted-text">Les contenus du fablab apparaîtront ici dès que la base répondra.</p>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHomeHighlightsLoadingState() {
+  return Array.from({ length: 3 })
+    .map(
+      (_, index) => `
+        <article class="feature-item">
+          <div class="feature-index">0${index + 1}</div>
+          <div>
+            <h3>Chargement</h3>
+            <p>Lecture des indicateurs du fablab en cours.</p>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHomeFeatureItems(stats) {
+  const items = [
+    {
+      title: `${stats.moduleCount} module${stats.moduleCount === 1 ? "" : "s"} disponible${stats.moduleCount === 1 ? "" : "s"}`,
+      text: "Une base pédagogique visible et claire pour démarrer rapidement sur des sujets concrets.",
+    },
+    {
+      title: `${stats.sessionCount} session${stats.sessionCount === 1 ? "" : "s"} à venir`,
+      text: "Les prochaines dates restent directement lisibles depuis la base pour guider l’inscription.",
+    },
+    {
+      title: `${stats.eventCount} événement${stats.eventCount === 1 ? "" : "s"} publié${stats.eventCount === 1 ? "" : "s"}`,
+      text: "L’accueil reflète l’activité réelle du lieu avec un agenda mis à jour depuis Supabase.",
+    },
+  ];
+
+  return items
+    .map(
+      (item, index) => `
+        <article class="feature-item">
+          <div class="feature-index">0${index + 1}</div>
+          <div>
+            <h3>${item.title}</h3>
+            <p>${item.text}</p>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHomeMetrics(stats) {
+  return `
+    <article class="metric-card">
+      <strong>${stats.sessionCount} session${stats.sessionCount === 1 ? "" : "s"} à venir</strong>
+      <span>Des inscriptions réelles déjà prêtes à être consultées et réservées.</span>
+    </article>
+    <article class="metric-card">
+      <strong>${stats.moduleCount} module${stats.moduleCount === 1 ? "" : "s"} publié${stats.moduleCount === 1 ? "" : "s"}</strong>
+      <span>Le catalogue visible sur l’accueil vient directement de la base du fablab.</span>
+    </article>
+    <article class="metric-card">
+      <strong>${stats.eventCount} événement${stats.eventCount === 1 ? "" : "s"} planifié${stats.eventCount === 1 ? "" : "s"}</strong>
+      <span>L’agenda et le hero reflètent maintenant les données réelles de Supabase.</span>
+    </article>
   `;
 }
 
@@ -1359,6 +1740,19 @@ function normalizeEvent(event) {
     date: event.date ?? event.event_date,
     description: event.short_description ?? event.description ?? "",
     meta,
+  };
+}
+
+function normalizePublicModuleRecord(moduleItem) {
+  return {
+    id: moduleItem.slug ?? moduleItem.id,
+    title: moduleItem.title ?? "Module",
+    shortText: moduleItem.short_description ?? "Module du fablab.",
+    presentation:
+      moduleItem.short_description ??
+      moduleItem.description ??
+      "Contenu en cours de publication.",
+    focus: [],
   };
 }
 
@@ -1605,6 +1999,24 @@ function cacheAdminDom() {
       submit: document.getElementById("events-admin-submit"),
       cancel: document.getElementById("events-admin-cancel-edit"),
     },
+    modules: {
+      form: document.getElementById("modules-admin-form"),
+      formTitle: document.getElementById("modules-admin-form-title"),
+      formMessage: document.getElementById("modules-admin-form-message"),
+      list: document.getElementById("modules-admin-list"),
+      count: document.getElementById("modules-admin-count"),
+      id: document.getElementById("modules-admin-id"),
+      slug: document.getElementById("modules-admin-slug"),
+      title: document.getElementById("modules-admin-title"),
+      shortDescription: document.getElementById("modules-admin-short-description"),
+      description: document.getElementById("modules-admin-description"),
+      objectives: document.getElementById("modules-admin-objectives"),
+      prerequisites: document.getElementById("modules-admin-prerequisites"),
+      materials: document.getElementById("modules-admin-materials"),
+      duration: document.getElementById("modules-admin-duration"),
+      submit: document.getElementById("modules-admin-submit"),
+      cancel: document.getElementById("modules-admin-cancel-edit"),
+    },
     sessions: {
       form: document.getElementById("sessions-admin-form"),
       formTitle: document.getElementById("sessions-admin-form-title"),
@@ -1641,6 +2053,7 @@ function bindAdminDashboardInteractions() {
   bindInventoryAdminControls();
   bindNeededEquipmentAdminControls();
   bindEventsAdminControls();
+  bindModulesAdminControls();
   bindSessionsAdminControls();
   bindRegistrationsAdminControls();
 }
@@ -1752,6 +2165,37 @@ function bindEventsAdminControls() {
   });
 
   updateAdminFormMode("events-admin", adminFormLabels.event);
+}
+
+function bindModulesAdminControls() {
+  const section = adminDom?.modules;
+
+  if (!section?.form || !section.list) {
+    return;
+  }
+
+  section.form.addEventListener("submit", handleModulesAdminFormSubmit);
+  section.cancel?.addEventListener("click", () => resetModulesAdminForm());
+
+  section.list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action][data-id]");
+    if (!button) {
+      return;
+    }
+
+    const recordId = button.dataset.id;
+
+    if (button.dataset.action === "edit") {
+      populateModulesAdminForm(recordId);
+      return;
+    }
+
+    if (button.dataset.action === "delete") {
+      await deleteModulesAdminRecord(recordId, button);
+    }
+  });
+
+  updateAdminFormMode("modules-admin", adminFormLabels.module);
 }
 
 function bindSessionsAdminControls() {
@@ -1915,31 +2359,66 @@ async function refreshEventsAdminSection() {
 
 async function refreshModulesAdminCollection(selectedIds = null) {
   const section = adminDom?.sessions;
+  const modulesSection = adminDom?.modules;
 
-  if (!section?.moduleOptions) {
+  if (!section?.moduleOptions && !modulesSection?.list) {
     return false;
   }
 
   const preservedSelection = selectedIds ?? getSelectedSessionModuleIds();
-  section.moduleOptions.innerHTML = `<p class="admin-helper-text">Chargement des modules...</p>`;
+
+  if (section?.moduleOptions) {
+    section.moduleOptions.innerHTML = `<p class="admin-helper-text">Chargement des modules...</p>`;
+  }
+
+  if (modulesSection?.list && modulesSection?.count) {
+    modulesSection.count.textContent = "Chargement...";
+    modulesSection.list.innerHTML = renderAdminListLoadingState(
+      "Récupération des modules disponibles...",
+    );
+  }
 
   const { data, error } = await supabase
     .from("modules")
-    .select("id, title")
+    .select("*")
     .order("title", { ascending: true });
 
   if (error) {
     adminState.modules = [];
-    section.moduleOptions.innerHTML = `
-      <p class="admin-helper-text admin-helper-error">
-        Impossible de charger les modules disponibles.
-      </p>
-    `;
+
+    if (section?.moduleOptions) {
+      section.moduleOptions.innerHTML = `
+        <p class="admin-helper-text admin-helper-error">
+          Impossible de charger les modules disponibles.
+        </p>
+      `;
+    }
+
+    if (modulesSection?.list && modulesSection?.count) {
+      modulesSection.count.textContent = "Erreur";
+      modulesSection.list.innerHTML = renderAdminErrorState(
+        "Impossible de charger les modules disponibles pour le moment.",
+      );
+    }
+
     return false;
   }
 
   adminState.modules = (data ?? []).map(normalizeAdminModuleRecord);
-  section.moduleOptions.innerHTML = renderSessionModuleOptions(preservedSelection);
+
+  if (section?.moduleOptions) {
+    section.moduleOptions.innerHTML = renderSessionModuleOptions(preservedSelection);
+  }
+
+  if (modulesSection?.list && modulesSection?.count) {
+    modulesSection.count.textContent = formatAdminCount(
+      adminState.modules.length,
+      "module",
+      "modules",
+    );
+    modulesSection.list.innerHTML = renderModulesAdminList(adminState.modules);
+  }
+
   return true;
 }
 
@@ -2141,6 +2620,76 @@ function renderEventsAdminList(items) {
     ["Titre", "Date", "Lieu", "Image", "Actions"],
     rows,
   );
+}
+
+function renderModulesAdminList(items) {
+  if (!items.length) {
+    return renderAdminEmptyState("Aucun module n’est enregistré pour le moment.");
+  }
+
+  return `
+    <div class="admin-module-grid">
+      ${items
+        .map(
+          (item) => `
+            <article class="info-card admin-module-card animate-rise">
+              <div class="card-topline">
+                <span class="eyebrow eyebrow-tight">Module</span>
+                <span class="subtle-badge">${escapeHtml(item.slug || "sans-slug")}</span>
+              </div>
+              <h3>${escapeHtml(item.title)}</h3>
+              <p>${escapeHtml(item.shortDescription || "Aucune description courte.")}</p>
+              <div class="admin-badge-list">
+                ${
+                  item.duration
+                    ? `<span class="tag">${escapeHtml(item.duration)}</span>`
+                    : `<span class="tag">Durée à préciser</span>`
+                }
+                ${
+                  item.prerequisites
+                    ? `<span class="subtle-badge">${escapeHtml(item.prerequisites)}</span>`
+                    : ""
+                }
+              </div>
+              ${
+                item.descriptionPreview
+                  ? `<p class="admin-module-preview">${escapeHtml(item.descriptionPreview)}</p>`
+                  : ""
+              }
+              ${
+                item.objectivesPreview
+                  ? `<p class="admin-cell-meta"><strong>Objectifs :</strong> ${escapeHtml(item.objectivesPreview)}</p>`
+                  : ""
+              }
+              ${
+                item.materialsPreview
+                  ? `<p class="admin-cell-meta"><strong>Matériel :</strong> ${escapeHtml(item.materialsPreview)}</p>`
+                  : ""
+              }
+              <div class="admin-row-actions">
+                <button
+                  class="button button-ghost button-small"
+                  data-action="edit"
+                  data-id="${escapeHtml(item.id)}"
+                  type="button"
+                >
+                  Modifier
+                </button>
+                <button
+                  class="button button-danger button-small"
+                  data-action="delete"
+                  data-id="${escapeHtml(item.id)}"
+                  type="button"
+                >
+                  Supprimer
+                </button>
+              </div>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function renderSessionsAdminList(items) {
@@ -2558,6 +3107,62 @@ async function handleEventAdminFormSubmit(event) {
   await refreshEventsAdminSection();
 }
 
+async function handleModulesAdminFormSubmit(event) {
+  event.preventDefault();
+
+  const section = adminDom?.modules;
+  if (!section?.form || !section.submit) {
+    return;
+  }
+
+  const payload = {
+    slug: section.slug?.value.trim() ?? "",
+    title: section.title?.value.trim() ?? "",
+    short_description: section.shortDescription?.value.trim() ?? "",
+    description: normalizeOptionalString(section.description?.value),
+    objectives: normalizeOptionalString(section.objectives?.value),
+    prerequisites: normalizeOptionalString(section.prerequisites?.value),
+    materials: normalizeOptionalString(section.materials?.value),
+    duration: normalizeOptionalString(section.duration?.value),
+  };
+
+  if (!payload.slug || !payload.title || !payload.short_description) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      "Renseignez au minimum le slug, le titre et la description courte.",
+    );
+    return;
+  }
+
+  const isEditing = Boolean(section.id?.value);
+  section.submit.disabled = true;
+
+  const query = isEditing
+    ? supabase.from("modules").update(payload).eq("id", section.id.value)
+    : supabase.from("modules").insert([payload]);
+  const { error } = await query;
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible d’enregistrer ce module.",
+    );
+    section.submit.disabled = false;
+    return;
+  }
+
+  resetModulesAdminForm({ keepMessage: true });
+  setAdminMessage(
+    section.formMessage,
+    "success",
+    isEditing ? "Module mis à jour." : "Module ajouté au catalogue.",
+  );
+  section.submit.disabled = false;
+  await refreshModulesAdminCollection();
+}
+
 async function handleSessionsAdminFormSubmit(event) {
   event.preventDefault();
 
@@ -2739,6 +3344,27 @@ function populateEventsAdminForm(recordId) {
   setAdminMessage(section.formMessage, "success", "Mode modification activé.");
 }
 
+function populateModulesAdminForm(recordId) {
+  const section = adminDom?.modules;
+  const record = findAdminRecordById(adminState.modules, recordId);
+
+  if (!section || !record) {
+    return;
+  }
+
+  section.id.value = record.id;
+  section.slug.value = record.slug;
+  section.title.value = record.title;
+  section.shortDescription.value = record.shortDescription;
+  section.description.value = record.description;
+  section.objectives.value = record.objectives;
+  section.prerequisites.value = record.prerequisites;
+  section.materials.value = record.materials;
+  section.duration.value = record.duration;
+  updateAdminFormMode("modules-admin", adminFormLabels.module);
+  setAdminMessage(section.formMessage, "success", "Mode modification activé.");
+}
+
 function populateSessionsAdminForm(recordId) {
   const section = adminDom?.sessions;
   const record = findAdminRecordById(adminState.sessions, recordId);
@@ -2799,6 +3425,21 @@ function resetEventsAdminForm({ keepMessage = false } = {}) {
   section.form.reset();
   section.id.value = "";
   updateAdminFormMode("events-admin", adminFormLabels.event);
+
+  if (!keepMessage) {
+    setAdminMessage(section.formMessage);
+  }
+}
+
+function resetModulesAdminForm({ keepMessage = false } = {}) {
+  const section = adminDom?.modules;
+  if (!section?.form || !section.id) {
+    return;
+  }
+
+  section.form.reset();
+  section.id.value = "";
+  updateAdminFormMode("modules-admin", adminFormLabels.module);
 
   if (!keepMessage) {
     setAdminMessage(section.formMessage);
@@ -2909,6 +3550,35 @@ async function deleteEventAdminRecord(recordId, button) {
 
   setAdminMessage(section.formMessage, "success", "Événement supprimé.");
   await refreshEventsAdminSection();
+}
+
+async function deleteModulesAdminRecord(recordId, button) {
+  const section = adminDom?.modules;
+  const record = findAdminRecordById(adminState.modules, recordId);
+
+  if (!section || !record || !window.confirm(`Supprimer le module ${record.title} ?`)) {
+    return;
+  }
+
+  button.disabled = true;
+  const { error } = await supabase.from("modules").delete().eq("id", recordId);
+
+  if (error) {
+    setAdminMessage(
+      section.formMessage,
+      "error",
+      error.message || "Impossible de supprimer ce module.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  if (section.id.value === String(recordId)) {
+    resetModulesAdminForm();
+  }
+
+  setAdminMessage(section.formMessage, "success", "Module supprimé.");
+  await refreshModulesAdminCollection();
 }
 
 async function deleteSessionsAdminRecord(recordId, button) {
@@ -3047,9 +3717,23 @@ function normalizeAdminEventRecord(item) {
 }
 
 function normalizeAdminModuleRecord(item) {
+  const description = item.description ?? "";
+  const objectives = item.objectives ?? "";
+  const materials = item.materials ?? "";
+
   return {
     id: item.id,
+    slug: item.slug ?? "",
     title: item.title ?? item.name ?? `Module ${item.id}`,
+    shortDescription: item.short_description ?? "",
+    description,
+    objectives,
+    prerequisites: item.prerequisites ?? "",
+    materials,
+    duration: item.duration ?? "",
+    descriptionPreview: truncateText(description, 140),
+    objectivesPreview: truncateText(objectives, 110),
+    materialsPreview: truncateText(materials, 110),
   };
 }
 
@@ -3182,6 +3866,20 @@ function formatSafeDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(parsed);
+}
+
+function truncateText(value, maxLength) {
+  const source = String(value ?? "").trim();
+
+  if (!source) {
+    return "";
+  }
+
+  if (source.length <= maxLength) {
+    return source;
+  }
+
+  return `${source.slice(0, maxLength).trim()}…`;
 }
 
 function escapeHtml(value) {
@@ -3723,6 +4421,28 @@ async function fetchEvents(limit) {
   return query;
 }
 
+async function fetchPublicModules() {
+  return supabase
+    .from("modules")
+    .select("*")
+    .order("title", { ascending: true });
+}
+
+async function fetchUpcomingSessionsCount() {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return supabase
+    .from("sessions")
+    .select("id", { count: "exact", head: true })
+    .gte("session_date", today);
+}
+
+async function fetchPublishedEventsCount() {
+  return supabase
+    .from("events")
+    .select("id", { count: "exact", head: true });
+}
+
 async function fetchSessions() {
   return supabase
     .from("sessions_with_modules")
@@ -3772,37 +4492,88 @@ async function hydrateEventsPage() {
   eventsGrid.innerHTML = data.map(renderEventCard).join("");
 }
 
-async function hydrateHomeEventsSection() {
+async function hydrateHomePageData() {
   if (page !== "home") {
     return;
   }
 
   const eventsGrid = document.getElementById("home-events-grid");
+  const featuredEventNode = document.getElementById("home-featured-event");
+  const heroModulesNode = document.getElementById("home-hero-modules");
+  const modulesGrid = document.getElementById("home-modules-grid");
+  const highlightsGrid = document.getElementById("home-highlights-grid");
+  const metricsGrid = document.getElementById("home-metrics-grid");
 
-  if (!eventsGrid) {
+  if (
+    !eventsGrid ||
+    !featuredEventNode ||
+    !heroModulesNode ||
+    !modulesGrid ||
+    !highlightsGrid ||
+    !metricsGrid
+  ) {
     return;
   }
 
-  const { data, error } = await fetchEvents(3);
+  const [eventsResult, modulesResult, sessionsCountResult, eventsCountResult] =
+    await Promise.all([
+      fetchEvents(3),
+      fetchPublicModules(),
+      fetchUpcomingSessionsCount(),
+      fetchPublishedEventsCount(),
+    ]);
 
-  console.log("home events data:", data);
-  console.log("home events error:", error);
+  console.log("home events data:", eventsResult.data);
+  console.log("home events error:", eventsResult.error);
+  console.log("home modules data:", modulesResult.data);
+  console.log("home modules error:", modulesResult.error);
+  console.log("home sessions count:", sessionsCountResult.count);
+  console.log("home sessions count error:", sessionsCountResult.error);
+  console.log("home events count:", eventsCountResult.count);
+  console.log("home events count error:", eventsCountResult.error);
 
-  if (error) {
+  if (eventsResult.error) {
     eventsGrid.innerHTML = renderEventsErrorState(
       "Les prochains événements ne peuvent pas être affichés pour le moment.",
     );
-    return;
-  }
-
-  if (!data || data.length === 0) {
+    featuredEventNode.innerHTML = renderHomeFeaturedEvent(null);
+  } else if (!eventsResult.data || eventsResult.data.length === 0) {
     eventsGrid.innerHTML = renderEventsEmptyState(
       "Le prochain planning sera affiché ici dès qu’un événement sera publié.",
     );
-    return;
+    featuredEventNode.innerHTML = renderHomeFeaturedEvent(null);
+  } else {
+    eventsGrid.innerHTML = eventsResult.data.map(renderEventCard).join("");
+    featuredEventNode.innerHTML = renderHomeFeaturedEvent(eventsResult.data[0]);
   }
 
-  eventsGrid.innerHTML = data.map(renderEventCard).join("");
+  const publicModules = modulesResult.error
+    ? []
+    : (modulesResult.data ?? []).map(normalizePublicModuleRecord);
+
+  heroModulesNode.innerHTML = renderHomeHeroModules(publicModules);
+  modulesGrid.innerHTML = publicModules.length
+    ? publicModules.map(renderModuleCard).join("")
+    : renderHomeModulesEmptyState(
+        modulesResult.error
+          ? "Les modules ne peuvent pas être récupérés pour le moment."
+          : "Aucun module n’est encore publié.",
+      );
+
+  const stats = {
+    moduleCount: publicModules.length,
+    sessionCount:
+      sessionsCountResult.error || sessionsCountResult.count === null
+        ? 0
+        : sessionsCountResult.count,
+    eventCount:
+      eventsCountResult.error || eventsCountResult.count === null
+        ? eventsResult.data?.length ?? 0
+        : eventsCountResult.count,
+  };
+
+  highlightsGrid.innerHTML = renderHomeFeatureItems(stats);
+  metricsGrid.innerHTML = renderHomeMetrics(stats);
 }
 
 async function hydrateSessionsPage() {
