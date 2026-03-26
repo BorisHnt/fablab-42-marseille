@@ -459,6 +459,18 @@ p {
   align-content: start;
 }
 
+.session-card-compact {
+  gap: 0.9rem;
+}
+
+.session-card-compact .session-meta {
+  gap: 0.65rem;
+}
+
+.session-card-compact .session-cta {
+  margin-top: 0.05rem;
+}
+
 .session-modules {
   gap: 0.65rem;
 }
@@ -756,6 +768,90 @@ p {
 
 .admin-module-preview {
   color: rgba(31, 35, 37, 0.72);
+}
+
+.admin-panel-head-start {
+  align-items: start;
+}
+
+.admin-session-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-session-card {
+  gap: 1.1rem;
+}
+
+.admin-session-card-copy {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.admin-session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.admin-session-notes {
+  margin: 0;
+  color: rgba(31, 35, 37, 0.72);
+}
+
+.admin-session-registrations {
+  display: grid;
+  gap: 0.9rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(31, 35, 37, 0.08);
+}
+
+.admin-session-subhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.admin-session-subhead h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.admin-registration-stack {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-registration-item {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 22px;
+  border: 1px solid rgba(31, 35, 37, 0.08);
+  background: var(--white);
+}
+
+.admin-registration-copy,
+.admin-registration-controls {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.admin-registration-controls .subtle-badge {
+  align-self: start;
+}
+
+.admin-session-empty {
+  padding: 1rem;
+  border-radius: 20px;
+  background: rgba(234, 242, 246, 0.68);
+  color: rgba(31, 35, 37, 0.68);
+}
+
+.admin-session-empty p {
+  margin: 0;
 }
 
 .admin-empty-state {
@@ -1149,6 +1245,15 @@ tr:last-child td {
 
   .admin-module-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-registration-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .admin-registration-controls {
+    justify-items: end;
   }
 
   .detail-copy {

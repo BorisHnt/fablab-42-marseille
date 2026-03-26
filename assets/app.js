@@ -242,13 +242,14 @@ function renderHomePage() {
         ${sectionHeading(
           "Rendez-vous",
           "Événements planifiés",
-          "Des formats ouverts, des temps de démonstration et des rendez-vous accessibles pour découvrir le lieu en situation réelle.",
+          "Des événements ouverts et des sessions de cours concrètes pour découvrir le fablab, réserver une place et suivre l’activité réelle du lieu.",
         )}
         <div class="card-grid three-columns" id="home-events-grid">
           ${renderEventsLoadingState("Chargement", "Récupération des prochains événements du fablab.")}
         </div>
         <div class="section-action">
           <a class="button button-ghost" href="${routeMap.events}">Tous les événements</a>
+          <a class="button button-secondary" href="${routeMap.sessions}">Toutes les sessions</a>
         </div>
       </section>
 
@@ -1532,25 +1533,7 @@ function renderHomeMetrics(stats) {
 }
 
 function renderEventCard(event) {
-  const normalizedEvent = normalizeEvent(event);
-
-  return `
-    <article class="info-card event-card animate-rise">
-      <div class="event-card-head">
-        <span class="event-date-badge">${formatDate(normalizedEvent.date)}</span>
-        <span class="category-badge">${normalizedEvent.category}</span>
-      </div>
-      <h3>${normalizedEvent.title}</h3>
-      <p>${normalizedEvent.description}</p>
-      ${
-        normalizedEvent.meta.length
-          ? `<div class="event-meta">${normalizedEvent.meta
-              .map((item) => `<span class="subtle-badge">${item}</span>`)
-              .join("")}</div>`
-          : ""
-      }
-    </article>
-  `;
+  return renderNormalizedEventCard(normalizeEvent(event));
 }
 
 function normalizeEvent(event) {
@@ -1631,6 +1614,68 @@ function renderSessionCard(session) {
         </a>
         <span class="session-availability">Formulaire d’inscription prêt</span>
       </div>
+    </article>
+  `;
+}
+
+function renderHomeAgendaCards(eventsList, sessionsList) {
+  const normalizedEvents = (eventsList ?? []).map(normalizeEvent);
+  const normalizedSessions = (sessionsList ?? []).map(normalizeSession);
+  const cards = [];
+
+  normalizedEvents.slice(0, 2).forEach((eventItem) => {
+    cards.push({ kind: "event", payload: eventItem });
+  });
+
+  normalizedSessions.slice(0, 1).forEach((sessionItem) => {
+    cards.push({ kind: "session", payload: sessionItem });
+  });
+
+  let eventIndex = 2;
+  let sessionIndex = 1;
+
+  while (cards.length < 3 && (eventIndex < normalizedEvents.length || sessionIndex < normalizedSessions.length)) {
+    if (eventIndex < normalizedEvents.length) {
+      cards.push({ kind: "event", payload: normalizedEvents[eventIndex] });
+      eventIndex += 1;
+
+      if (cards.length >= 3) {
+        break;
+      }
+    }
+
+    if (sessionIndex < normalizedSessions.length) {
+      cards.push({ kind: "session", payload: normalizedSessions[sessionIndex] });
+      sessionIndex += 1;
+    }
+  }
+
+  if (!cards.length) {
+    return "";
+  }
+
+  return cards
+    .slice(0, 3)
+    .map((item) => (item.kind === "session" ? renderHomeAgendaSessionCard(item.payload) : renderNormalizedEventCard(item.payload)))
+    .join("");
+}
+
+function renderNormalizedEventCard(normalizedEvent) {
+  return `
+    <article class="info-card event-card animate-rise">
+      <div class="event-card-head">
+        <span class="event-date-badge">${formatDate(normalizedEvent.date)}</span>
+        <span class="category-badge">${normalizedEvent.category}</span>
+      </div>
+      <h3>${normalizedEvent.title}</h3>
+      <p>${normalizedEvent.description}</p>
+      ${
+        normalizedEvent.meta.length
+          ? `<div class="event-meta">${normalizedEvent.meta
+              .map((item) => `<span class="subtle-badge">${item}</span>`)
+              .join("")}</div>`
+          : ""
+      }
     </article>
   `;
 }
@@ -2051,6 +2096,16 @@ function bindSessionsAdminControls() {
 
     const recordId = button.dataset.id;
 
+    if (button.dataset.action === "save-registration-status") {
+      await updateRegistrationStatus(recordId, button);
+      return;
+    }
+
+    if (button.dataset.action === "delete-registration") {
+      await deleteRegistrationRecord(recordId, button);
+      return;
+    }
+
     if (button.dataset.action === "edit") {
       populateSessionsAdminForm(recordId);
       return;
@@ -2088,6 +2143,34 @@ function bindRegistrationsAdminControls() {
       await deleteRegistrationRecord(recordId, button);
     }
   });
+}
+
+function getRegistrationStatusSelectNode(recordId, button) {
+  const scopedNode = button
+    ?.closest("[data-registration-entry]")
+    ?.querySelector(`[data-registration-id="${CSS.escape(String(recordId))}"]`);
+
+  if (scopedNode) {
+    return scopedNode;
+  }
+
+  const listScopedNode = button
+    ?.closest("#registrations-admin-list, #sessions-admin-list")
+    ?.querySelector(`[data-registration-id="${CSS.escape(String(recordId))}"]`);
+
+  if (listScopedNode) {
+    return listScopedNode;
+  }
+
+  return document.querySelector(`[data-registration-id="${CSS.escape(String(recordId))}"]`);
+}
+
+function getRegistrationFeedbackNode(button) {
+  if (button?.closest("#sessions-admin-list")) {
+    return adminDom?.sessions?.formMessage ?? adminDom?.registrations?.message ?? null;
+  }
+
+  return adminDom?.registrations?.message ?? adminDom?.sessions?.formMessage ?? null;
 }
 
 async function refreshInventorySection() {
@@ -2301,6 +2384,7 @@ async function refreshSessionsAdminSection() {
     "sessions",
   );
   section.list.innerHTML = renderSessionsAdminList(adminState.sessions);
+  renderAdminMetrics();
 }
 
 async function refreshRegistrationsAdminSection() {
@@ -2335,6 +2419,9 @@ async function refreshRegistrationsAdminSection() {
     "inscriptions",
   );
   section.list.innerHTML = renderRegistrationsAdminList(adminState.registrations);
+  if (adminDom?.sessions?.list && adminState.sessions.length) {
+    adminDom.sessions.list.innerHTML = renderSessionsAdminList(adminState.sessions);
+  }
   renderAdminMetrics();
 }
 
@@ -2532,48 +2619,127 @@ function renderSessionsAdminList(items) {
     return renderAdminEmptyState("Aucune session de cours n’est enregistrée pour le moment.");
   }
 
-  const rows = items
-    .map(
-      (item) => `
-        <tr>
-          <td>
-            <strong>${escapeHtml(item.title)}</strong>
-            ${
-              item.notes
-                ? `<div class="admin-cell-meta">${escapeHtml(item.notes)}</div>`
-                : ""
-            }
-          </td>
-          <td>
-            <strong>${escapeHtml(formatSafeDate(item.sessionDate))}</strong>
-            ${
-              item.timeRange
-                ? `<div class="admin-cell-meta">${escapeHtml(item.timeRange)}</div>`
-                : ""
-            }
-          </td>
-          <td>${renderAdminTagList(item.modules)}</td>
-          <td>${escapeHtml(item.level || "Tous niveaux")}</td>
-          <td>
-            <strong>${escapeHtml(item.seatsTotal ?? "—")}</strong>
-            ${
-              item.seatsRemaining !== null
-                ? `<div class="admin-cell-meta">${escapeHtml(
-                    `${item.seatsRemaining} restantes`,
-                  )}</div>`
-                : ""
-            }
-          </td>
-          <td>${renderAdminRowActions(item.id)}</td>
-        </tr>
-      `,
-    )
-    .join("");
+  return `
+    <div class="admin-session-list">
+      ${items.map(renderAdminSessionCard).join("")}
+    </div>
+  `;
+}
 
-  return renderAdminTable(
-    ["Session", "Date", "Modules", "Niveau", "Places", "Actions"],
-    rows,
+function renderAdminSessionCard(item) {
+  return `
+    <article class="admin-panel admin-session-card">
+      <div class="admin-panel-head admin-panel-head-start">
+        <div class="admin-session-card-copy">
+          <div class="card-topline">
+            <span class="eyebrow eyebrow-tight">Session</span>
+            ${item.level ? `<span>${escapeHtml(item.level)}</span>` : "<span>Tous niveaux</span>"}
+          </div>
+          <h3>${escapeHtml(item.title)}</h3>
+          <div class="admin-session-meta">
+            <span class="subtle-badge">${escapeHtml(formatSafeDate(item.sessionDate))}</span>
+            ${item.timeRange ? `<span class="subtle-badge">${escapeHtml(item.timeRange)}</span>` : ""}
+            ${
+              item.seatsTotal !== null
+                ? `<span class="subtle-badge">${escapeHtml(
+                    item.seatsRemaining !== null
+                      ? `${item.seatsRemaining} / ${item.seatsTotal} places`
+                      : `${item.seatsTotal} places`,
+                  )}</span>`
+                : ""
+            }
+          </div>
+          ${item.notes ? `<p class="admin-session-notes">${escapeHtml(item.notes)}</p>` : ""}
+          ${renderAdminTagList(item.modules)}
+        </div>
+        <div class="admin-row-actions">
+          <button class="button button-ghost button-small" data-action="edit" data-id="${escapeHtml(item.id)}" type="button">
+            Modifier
+          </button>
+          <button class="button button-danger button-small" data-action="delete" data-id="${escapeHtml(item.id)}" type="button">
+            Supprimer
+          </button>
+        </div>
+      </div>
+      ${renderSessionAdminRegistrationsBlock(item.id)}
+    </article>
+  `;
+}
+
+function renderSessionAdminRegistrationsBlock(sessionId) {
+  const relatedRegistrations = adminState.registrations.filter(
+    (item) => String(item.sessionId) === String(sessionId),
   );
+
+  if (!relatedRegistrations.length) {
+    return `
+      <div class="admin-session-registrations">
+        <div class="admin-session-subhead">
+          <h4>Inscrits</h4>
+          <span class="subtle-badge">0 inscrit</span>
+        </div>
+        <div class="admin-session-empty">
+          <p>Aucun inscrit sur cette session pour le moment.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="admin-session-registrations">
+      <div class="admin-session-subhead">
+        <h4>Inscrits</h4>
+        <span class="subtle-badge">${formatAdminCount(
+          relatedRegistrations.length,
+          "inscrit",
+          "inscrits",
+        )}</span>
+      </div>
+      <div class="admin-registration-stack">
+        ${relatedRegistrations.map(renderAdminRegistrationItem).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderAdminRegistrationItem(item) {
+  return `
+    <article class="admin-registration-item" data-registration-entry data-registration-id="${escapeHtml(item.id)}">
+      <div class="admin-registration-copy">
+        <strong>${escapeHtml(item.firstName)} ${escapeHtml(item.lastName)}</strong>
+        <div class="admin-cell-meta">${escapeHtml(item.email)}</div>
+        ${item.login42 ? `<div class="admin-cell-meta">Login 42 : ${escapeHtml(item.login42)}</div>` : ""}
+      </div>
+      <div class="admin-registration-controls">
+        <select
+          class="admin-inline-select"
+          id="session-registration-status-${escapeHtml(item.id)}"
+          data-registration-id="${escapeHtml(item.id)}"
+        >
+          ${renderRegistrationStatusOptions(item.status)}
+        </select>
+        <span class="subtle-badge">${escapeHtml(formatRegistrationStatus(item.status))}</span>
+        <div class="admin-row-actions">
+          <button
+            class="button button-ghost button-small"
+            data-action="save-registration-status"
+            data-id="${escapeHtml(item.id)}"
+            type="button"
+          >
+            Enregistrer
+          </button>
+          <button
+            class="button button-danger button-small"
+            data-action="delete-registration"
+            data-id="${escapeHtml(item.id)}"
+            type="button"
+          >
+            Supprimer
+          </button>
+        </div>
+      </div>
+    </article>
+  `;
 }
 
 function renderRegistrationsAdminList(items) {
@@ -3446,17 +3612,15 @@ async function deleteSessionsAdminRecord(recordId, button) {
 }
 
 async function updateRegistrationStatus(recordId, button) {
-  const section = adminDom?.registrations;
-  const selectNode = section?.list?.querySelector(
-    `[data-registration-id="${CSS.escape(String(recordId))}"]`,
-  );
+  const selectNode = getRegistrationStatusSelectNode(recordId, button);
+  const messageNode = getRegistrationFeedbackNode(button);
 
-  if (!section || !selectNode) {
+  if (!selectNode) {
     return;
   }
 
   button.disabled = true;
-  setAdminMessage(section.message);
+  setAdminMessage(messageNode);
 
   const { error } = await supabase
     .from("registrations")
@@ -3465,7 +3629,7 @@ async function updateRegistrationStatus(recordId, button) {
 
   if (error) {
     setAdminMessage(
-      section.message,
+      messageNode,
       "error",
       error.message || "Impossible de mettre à jour le statut.",
     );
@@ -3473,16 +3637,15 @@ async function updateRegistrationStatus(recordId, button) {
     return;
   }
 
-  setAdminMessage(section.message, "success", "Statut mis à jour.");
+  setAdminMessage(messageNode, "success", "Statut mis à jour.");
   await Promise.all([refreshRegistrationsAdminSection(), refreshSessionsAdminSection()]);
 }
 
 async function deleteRegistrationRecord(recordId, button) {
-  const section = adminDom?.registrations;
   const record = findAdminRecordById(adminState.registrations, recordId);
+  const messageNode = getRegistrationFeedbackNode(button);
 
   if (
-    !section ||
     !record ||
     !window.confirm(
       `Supprimer l’inscription de ${record.firstName} ${record.lastName} pour ${record.sessionTitle} ?`,
@@ -3497,7 +3660,7 @@ async function deleteRegistrationRecord(recordId, button) {
 
   if (error) {
     setAdminMessage(
-      section.message,
+      messageNode,
       "error",
       error.message || "Impossible de supprimer cette inscription.",
     );
@@ -3505,7 +3668,7 @@ async function deleteRegistrationRecord(recordId, button) {
     return;
   }
 
-  setAdminMessage(section.message, "success", "Inscription supprimée.");
+  setAdminMessage(messageNode, "success", "Inscription supprimée.");
   await Promise.all([refreshRegistrationsAdminSection(), refreshSessionsAdminSection()]);
 }
 
@@ -3612,6 +3775,7 @@ function normalizeAdminRegistrationRecord(item) {
 
   return {
     id: item.registration_id ?? item.id,
+    sessionId: item.session_id ?? item.sessions_id ?? "",
     firstName: item.first_name ?? "",
     lastName: item.last_name ?? "",
     email: item.email ?? "",
@@ -3695,11 +3859,12 @@ function formatSafeDateTime(value) {
   }
 
   return new Intl.DateTimeFormat("fr-FR", {
-    day: "numeric",
-    month: "long",
+    day: "2-digit",
+    month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   }).format(parsed);
 }
 
@@ -3734,19 +3899,34 @@ function registrationLink(sessionId) {
   return `inscription.html?session_id=${encodeURIComponent(sessionId)}`;
 }
 
+function padNumber(value) {
+  return String(value).padStart(2, "0");
+}
+
 function formatDate(date) {
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(date));
+  if (!date) {
+    return "Date à confirmer";
+  }
+
+  const dateValue = String(date).trim();
+  const dateMatch = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (dateMatch) {
+    const [, year, month, day] = dateMatch;
+    return `${day}/${month}/${year}`;
+  }
+
+  const parsed = new Date(dateValue);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return dateValue;
+  }
+
+  return `${padNumber(parsed.getDate())}/${padNumber(parsed.getMonth() + 1)}/${parsed.getFullYear()}`;
 }
 
 function formatShortDate(date) {
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "numeric",
-    month: "short",
-  }).format(new Date(date));
+  return formatDate(date);
 }
 
 function formatTimeRange(startTime, endTime) {
@@ -3780,6 +3960,35 @@ function renderEventsLoadingState(label = "Chargement", text = "Les événements
       <span class="event-date-badge">${label}</span>
       <h3>Récupération des événements</h3>
       <p>${text}</p>
+    </article>
+  `;
+}
+
+function renderHomeAgendaSessionCard(session) {
+  return `
+    <article class="info-card session-card session-card-compact animate-rise">
+      <div class="session-head">
+        <span class="category-badge">${formatDate(session.date)}</span>
+        <span class="subtle-badge">${session.level}</span>
+      </div>
+      <h3>${session.title}</h3>
+      <div class="session-meta">
+        ${session.timeRange ? `<div class="inline-detail">${session.timeRange}</div>` : ""}
+        ${session.seatLabel ? `<div class="inline-detail">${session.seatLabel}</div>` : ""}
+      </div>
+      ${
+        session.modules.length
+          ? `<div class="session-modules">${session.modules
+              .slice(0, 2)
+              .map((item) => `<span class="tag">${item}</span>`)
+              .join("")}</div>`
+          : ""
+      }
+      <div class="session-cta">
+        <a class="button button-primary button-block" href="${registrationLink(session.id)}">
+          S’inscrire
+        </a>
+      </div>
     </article>
   `;
 }
@@ -4370,28 +4579,30 @@ async function hydrateHomePageData() {
   console.log("home sessions data:", sessionsResult.data);
   console.log("home sessions error:", sessionsResult.error);
 
-  if (eventsResult.error) {
+  const homeEvents = eventsResult.error ? [] : (eventsResult.data ?? []);
+  const homeSessions = sessionsResult.error ? [] : (sessionsResult.data ?? []);
+  const homeAgendaMarkup = renderHomeAgendaCards(homeEvents, homeSessions);
+
+  if (eventsResult.error && sessionsResult.error) {
     eventsGrid.innerHTML = renderEventsErrorState(
-      "Les prochains événements ne peuvent pas être affichés pour le moment.",
+      "Les prochains événements et sessions ne peuvent pas être affichés pour le moment.",
     );
     featuredEventNode.innerHTML = renderHomeFeaturedEvent(null);
-  } else if (!eventsResult.data || eventsResult.data.length === 0) {
+  } else if (!homeAgendaMarkup) {
     eventsGrid.innerHTML = renderEventsEmptyState(
-      "Le prochain planning sera affiché ici dès qu’un événement sera publié.",
+      "Le prochain planning sera affiché ici dès qu’un événement ou une session sera publié(e).",
     );
     featuredEventNode.innerHTML = renderHomeFeaturedEvent(null);
   } else {
-    eventsGrid.innerHTML = eventsResult.data.map(renderEventCard).join("");
-    featuredEventNode.innerHTML = renderHomeFeaturedEvent(eventsResult.data[0]);
+    eventsGrid.innerHTML = homeAgendaMarkup;
+    featuredEventNode.innerHTML = renderHomeFeaturedEvent(homeEvents[0] ?? null);
   }
 
   const publicModules = modulesResult.error
     ? []
     : (modulesResult.data ?? []).map(normalizePublicModuleRecord);
 
-  const upcomingSessions = sessionsResult.error
-    ? []
-    : (sessionsResult.data ?? []).map(normalizeSession).slice(0, 2);
+  const upcomingSessions = homeSessions.map(normalizeSession).slice(0, 2);
 
   heroSessionsNode.innerHTML = renderHomeHeroSessions(upcomingSessions);
   modulesGrid.innerHTML = publicModules.length
