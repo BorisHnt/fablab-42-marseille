@@ -47,6 +47,7 @@ hydrateSessionsPage();
 hydrateRegistrationPage();
 hydrateModuleDetailSessions();
 hydrateAdminLoginPage();
+hydrateAdminPage();
 
 function renderShell() {
   const activeKey = pageParent[page] ?? page;
@@ -124,7 +125,7 @@ function renderPage() {
       break;
     case "admin":
       document.title = "Admin • Fablab 42 Marseille";
-      content.innerHTML = renderAdminPage();
+      content.innerHTML = renderAdminLoadingPage();
       break;
     case "admin-login":
       document.title = "Connexion admin • Fablab 42 Marseille";
@@ -476,7 +477,7 @@ function renderEventsPage() {
   `;
 }
 
-function renderAdminPage() {
+function renderAdminPage(userEmail = "") {
   return `
     <div class="page-flow">
       <section class="page-hero animate-rise">
@@ -486,7 +487,23 @@ function renderAdminPage() {
           "Même sans backend branché, l’architecture admin existe déjà pour préparer la gestion du matériel et les besoins du fablab.",
         )}
         <div class="section-action">
-          <a class="button button-primary" href="${routeMap.adminLogin}">Connexion admin</a>
+          <span class="subtle-badge admin-user-badge">${userEmail}</span>
+        </div>
+      </section>
+
+      <section class="admin-session-panel animate-rise">
+        <div class="admin-session-copy">
+          <span class="category-badge">Session admin active</span>
+          <h3>${userEmail}</h3>
+          <p>
+            Ce compte est actuellement connecté à l’interface d’administration du fablab.
+          </p>
+        </div>
+        <div class="admin-session-actions">
+          <button class="button button-ghost" id="admin-logout-button" type="button">
+            Se déconnecter
+          </button>
+          <p id="admin-logout-message" class="admin-logout-message" aria-live="polite"></p>
         </div>
       </section>
 
@@ -546,6 +563,33 @@ function renderAdminPage() {
         )}
       </section>
     </div>
+  `;
+}
+
+function renderAdminLoadingPage() {
+  return `
+    <section class="section-card animate-rise">
+      ${sectionHeading(
+        "Admin",
+        "Vérification de la session",
+        "Contrôle en cours avant l’affichage de l’interface d’administration.",
+      )}
+    </section>
+  `;
+}
+
+function renderAdminErrorPage() {
+  return `
+    <section class="section-card animate-rise">
+      ${sectionHeading(
+        "Admin",
+        "Impossible de vérifier la session",
+        "La session administrateur n’a pas pu être vérifiée pour le moment.",
+      )}
+      <div class="section-action">
+        <a class="button button-primary" href="${routeMap.adminLogin}">Retour à la connexion</a>
+      </div>
+    </section>
   `;
 }
 
@@ -1440,5 +1484,59 @@ async function hydrateAdminLoginPage() {
     messageNode.dataset.state = "success";
     messageNode.textContent = "Connexion réussie. Redirection...";
     window.location.href = routeMap.admin;
+  });
+}
+
+async function hydrateAdminPage() {
+  if (page !== "admin") {
+    return;
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+  const session = data?.session ?? null;
+
+  console.log("admin session data:", data);
+  console.log("admin session error:", error);
+
+  if (error) {
+    content.innerHTML = renderAdminErrorPage();
+    return;
+  }
+
+  if (!session) {
+    window.location.href = routeMap.adminLogin;
+    return;
+  }
+
+  const userEmail = session.user?.email ?? "Administrateur connecté";
+  content.innerHTML = renderAdminPage(userEmail);
+
+  const logoutButton = document.getElementById("admin-logout-button");
+  const logoutMessage = document.getElementById("admin-logout-message");
+
+  if (!logoutButton || !logoutMessage) {
+    return;
+  }
+
+  logoutButton.addEventListener("click", async () => {
+    logoutButton.disabled = true;
+    logoutButton.textContent = "Déconnexion...";
+    logoutMessage.textContent = "";
+    delete logoutMessage.dataset.state;
+
+    const { error: signOutError } = await supabase.auth.signOut();
+
+    if (signOutError) {
+      logoutMessage.dataset.state = "error";
+      logoutMessage.textContent =
+        signOutError.message || "La déconnexion a échoué. Réessayez.";
+      logoutButton.disabled = false;
+      logoutButton.textContent = "Se déconnecter";
+      return;
+    }
+
+    logoutMessage.dataset.state = "success";
+    logoutMessage.textContent = "Déconnexion en cours...";
+    window.location.href = routeMap.adminLogin;
   });
 }
