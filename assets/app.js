@@ -18,6 +18,9 @@ const routeMap = {
   modules: "modules.html",
   sessions: "sessions.html",
   events: "evenements.html",
+  signup: "signup.html",
+  login: "login.html",
+  account: "mon-espace.html",
   admin: "admin.html",
   adminLogin: "admin-login.html",
 };
@@ -79,17 +82,23 @@ const navItems = [
 const pageParent = {
   "module-detail": "modules",
   registration: "sessions",
+  signup: "login",
+  account: "login",
   "admin-login": "admin",
 };
 
 renderShell();
 renderPage();
 bindInteractions();
+hydrateAuthNavigation();
 hydrateEventsPage();
 hydrateHomeEventsSection();
 hydrateSessionsPage();
 hydrateRegistrationPage();
 hydrateModuleDetailSessions();
+hydrateSignupPage();
+hydrateLoginPage();
+hydrateUserDashboardPage();
 hydrateAdminLoginPage();
 hydrateAdminPage();
 
@@ -122,7 +131,12 @@ function renderShell() {
             )
             .join("")}
         </div>
-        <a class="button button-secondary nav-cta" href="${routeMap.sessions}">Voir les sessions</a>
+        <div class="nav-actions">
+          <a class="button button-secondary nav-cta" href="${routeMap.sessions}">Voir les sessions</a>
+          <a class="button button-ghost nav-auth-link" id="nav-auth-link" href="${routeMap.login}">
+            Connexion
+          </a>
+        </div>
       </div>
     </nav>
   `;
@@ -166,6 +180,18 @@ function renderPage() {
     case "events":
       document.title = "Événements • Fablab 42 Marseille";
       content.innerHTML = renderEventsPage();
+      break;
+    case "signup":
+      document.title = "Inscription • Fablab 42 Marseille";
+      content.innerHTML = renderSignupPage();
+      break;
+    case "login":
+      document.title = "Connexion • Fablab 42 Marseille";
+      content.innerHTML = renderLoginPage();
+      break;
+    case "account":
+      document.title = "Mon espace • Fablab 42 Marseille";
+      content.innerHTML = renderUserDashboardLoadingPage();
       break;
     case "admin":
       document.title = "Admin • Fablab 42 Marseille";
@@ -516,6 +542,254 @@ function renderEventsPage() {
 
       <section class="card-grid two-columns" id="events-grid">
         ${renderEventsLoadingState()}
+      </section>
+    </div>
+  `;
+}
+
+function renderSignupPage() {
+  const loginHref = `${routeMap.login}${window.location.search || ""}`;
+
+  return `
+    <div class="page-flow">
+      <section class="registration-layout">
+        <div class="section-card registration-card animate-rise">
+          ${sectionHeading(
+            "Compte",
+            "Créer un espace personnel",
+            "Inscrivez-vous pour suivre vos sessions, retrouver vos modules passés et gérer vos inscriptions depuis un espace dédié.",
+          )}
+
+          <form class="signup-form" id="user-signup-form">
+            <label for="signup-display-name">
+              Nom affiché
+              <input id="signup-display-name" name="display_name" type="text" required />
+            </label>
+            <label for="signup-login-42">
+              Login 42
+              <input id="signup-login-42" name="login_42" type="text" />
+            </label>
+            <label for="signup-email">
+              Adresse e-mail
+              <input id="signup-email" name="email" type="email" autocomplete="email" required />
+            </label>
+            <label for="signup-password">
+              Mot de passe
+              <input
+                id="signup-password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                required
+              />
+            </label>
+            <label for="signup-password-confirmation">
+              Confirmer le mot de passe
+              <input
+                id="signup-password-confirmation"
+                name="password_confirmation"
+                type="password"
+                autocomplete="new-password"
+                required
+              />
+            </label>
+            <button class="button button-primary" id="user-signup-submit" type="submit">
+              Créer mon compte
+            </button>
+            <p id="user-signup-message" class="admin-login-message" aria-live="polite">
+              Votre compte utilisateur vous donnera accès à vos inscriptions et à votre espace personnel.
+            </p>
+          </form>
+        </div>
+
+        <aside class="registration-summary">
+          <article class="info-card animate-rise">
+            <span class="category-badge">Déjà inscrit</span>
+            <h3>Vous avez déjà un compte ?</h3>
+            <p>
+              Connectez-vous pour retrouver vos sessions futures, vos modules passés et votre tableau
+              de bord personnel.
+            </p>
+            <a class="button button-ghost" href="${loginHref}">Se connecter</a>
+          </article>
+          <article class="info-card animate-rise">
+            <span class="subtle-badge">Parcours utilisateur</span>
+            <p>
+              Le compte sert à sécuriser les inscriptions, éviter les doublons et vous permettre de
+              suivre votre progression proprement.
+            </p>
+          </article>
+        </aside>
+      </section>
+    </div>
+  `;
+}
+
+function renderLoginPage() {
+  const signupHref = `${routeMap.signup}${window.location.search || ""}`;
+
+  return `
+    <div class="page-flow">
+      <section class="registration-layout">
+        <div class="section-card registration-card animate-rise">
+          ${sectionHeading(
+            "Compte",
+            "Connexion utilisateur",
+            "Connectez-vous pour réserver une session, consulter vos inscriptions et accéder à votre espace personnel.",
+          )}
+
+          <form class="signup-form" id="user-login-form">
+            <label for="user-login-email">
+              Adresse e-mail
+              <input id="user-login-email" name="email" type="email" autocomplete="email" required />
+            </label>
+            <label for="user-login-password">
+              Mot de passe
+              <input
+                id="user-login-password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+              />
+            </label>
+            <button class="button button-primary" id="user-login-submit" type="submit">
+              Se connecter
+            </button>
+            <p id="user-login-message" class="admin-login-message" aria-live="polite">
+              Utilisez les identifiants de votre espace utilisateur.
+            </p>
+          </form>
+        </div>
+
+        <aside class="registration-summary">
+          <article class="info-card animate-rise">
+            <span class="category-badge">Nouveau ici</span>
+            <h3>Créer un compte</h3>
+            <p>
+              Un compte vous permet de suivre vos sessions, d’éviter les doublons et de retrouver vos
+              prochaines dates en un coup d’œil.
+            </p>
+            <a class="button button-ghost" href="${signupHref}">Créer un compte</a>
+          </article>
+          <article class="info-card animate-rise">
+            <span class="subtle-badge">Inscription aux sessions</span>
+            <p>
+              Si vous venez depuis une session précise, votre redirection sera conservée après
+              connexion pour ne pas casser le parcours.
+            </p>
+          </article>
+        </aside>
+      </section>
+    </div>
+  `;
+}
+
+function renderUserDashboardLoadingPage() {
+  return `
+    <section class="section-card animate-rise">
+      ${sectionHeading(
+        "Mon espace",
+        "Chargement de votre espace",
+        "Vérification de la session utilisateur et récupération de vos données personnelles.",
+      )}
+    </section>
+  `;
+}
+
+function renderUserDashboardErrorPage(text = "Votre espace n’a pas pu être chargé pour le moment.") {
+  return `
+    <section class="section-card animate-rise">
+      ${sectionHeading("Mon espace", "Chargement impossible", text)}
+      <div class="section-action">
+        <a class="button button-primary" href="${routeMap.login}">Retour à la connexion</a>
+      </div>
+    </section>
+  `;
+}
+
+function renderUserDashboardPage(summary) {
+  const displayName = summary.displayName || summary.email || "Utilisateur";
+
+  return `
+    <div class="page-flow">
+      <section class="page-hero animate-rise">
+        ${sectionHeading(
+          "Mon espace",
+          `Bienvenue ${displayName}`,
+          "Retrouvez ici vos prochaines sessions, vos modules passés et les actions utiles liées à votre parcours au fablab.",
+        )}
+      </section>
+
+      <section class="user-hero-grid animate-rise">
+        <article class="info-card user-profile-card">
+          <span class="category-badge">Profil connecté</span>
+          <h3>${displayName}</h3>
+          <div class="user-profile-meta">
+            <span class="subtle-badge">${summary.email || "Email non disponible"}</span>
+            ${
+              summary.login42
+                ? `<span class="subtle-badge">Login 42 : ${summary.login42}</span>`
+                : ""
+            }
+          </div>
+          <p>
+            Cet espace réunit vos inscriptions, votre historique pédagogique et des raccourcis pour
+            préparer vos prochaines sessions.
+          </p>
+        </article>
+
+        <article class="info-card user-actions-card">
+          <span class="subtle-badge">Actions rapides</span>
+          <div class="metrics-grid user-metrics-grid">
+            <article class="metric-card">
+              <strong>${summary.upcomingRegistrationsCount}</strong>
+              <span>inscriptions à venir</span>
+            </article>
+            <article class="metric-card">
+              <strong>${summary.completedModulesCount}</strong>
+              <span>modules passés</span>
+            </article>
+          </div>
+          <div class="user-actions-row">
+            <a class="button button-secondary" href="${routeMap.sessions}">Voir les sessions</a>
+            <button class="button button-ghost" id="user-logout-button" type="button">
+              Se déconnecter
+            </button>
+          </div>
+          <p id="user-dashboard-message" class="admin-feedback" aria-live="polite"></p>
+        </article>
+      </section>
+
+      <section class="section-card animate-rise">
+        ${sectionHeading(
+          "À venir",
+          "Mes sessions à venir",
+          "Vos prochaines sessions réservent une place, avec un accès rapide à votre agenda et à l’annulation si nécessaire.",
+        )}
+        <div class="card-grid two-columns" id="user-upcoming-registrations">
+          ${renderEventsLoadingState("Chargement", "Récupération de vos prochaines inscriptions...")}
+        </div>
+      </section>
+
+      <section class="section-card section-card-soft animate-rise">
+        ${sectionHeading(
+          "Parcours",
+          "Mes modules passés",
+          "Une lecture simple de ce que vous avez déjà suivi, pour voir d’où vous repartez.",
+        )}
+        <div class="card-grid two-columns" id="user-completed-modules">
+          ${renderEventsLoadingState("Chargement", "Récupération de vos modules passés...")}
+        </div>
+      </section>
+
+      <section class="section-card animate-rise is-hidden" id="user-cancelled-section">
+        ${sectionHeading(
+          "Archive",
+          "Mes inscriptions annulées",
+          "Un historique léger des réservations annulées, utile si vous devez replanifier plus tard.",
+        )}
+        <div class="card-grid two-columns" id="user-cancelled-registrations"></div>
       </section>
     </div>
   `;
@@ -3029,6 +3303,28 @@ function renderRegistrationState(message) {
   `;
 }
 
+function renderRegistrationAuthGate() {
+  return `
+    <div class="registration-gate">
+      <div>
+        <strong>Vous devez être connecté pour vous inscrire à une session.</strong>
+        <p>
+          Connectez-vous à votre espace utilisateur ou créez un compte pour finaliser votre
+          inscription et suivre vos sessions.
+        </p>
+      </div>
+      <div class="user-actions-row">
+        <a class="button button-primary" href="${buildLoginRedirectHref(getCurrentRelativeUrl())}">
+          Se connecter
+        </a>
+        <a class="button button-ghost" href="${buildSignupRedirectHref(getCurrentRelativeUrl())}">
+          Créer un compte
+        </a>
+      </div>
+    </div>
+  `;
+}
+
 function renderRegistrationSummary(session) {
   return `
     <span class="category-badge">Session sélectionnée</span>
@@ -3047,6 +3343,318 @@ function renderRegistrationSummary(session) {
     }
     ${session.notes ? `<p class="session-notes">${session.notes}</p>` : ""}
   `;
+}
+
+function renderUserStateCard(label, title, text) {
+  return `
+    <article class="info-card event-card animate-rise">
+      <span class="event-date-badge">${label}</span>
+      <h3>${title}</h3>
+      <p>${text}</p>
+    </article>
+  `;
+}
+
+function renderUpcomingRegistrationCard(registration) {
+  return `
+    <article class="info-card session-card user-session-card animate-rise">
+      <div class="session-head">
+        <span class="category-badge">${formatSafeDate(registration.sessionDate)}</span>
+        <span class="subtle-badge">${registration.statusLabel}</span>
+      </div>
+      <h3>${registration.title}</h3>
+      <div class="session-meta">
+        ${
+          registration.timeRange
+            ? `<div class="inline-detail">${registration.timeRange}</div>`
+            : ""
+        }
+        ${registration.level ? `<div class="inline-detail">${registration.level}</div>` : ""}
+      </div>
+      ${registration.notes ? `<p class="session-notes">${registration.notes}</p>` : ""}
+      <div class="user-actions-row">
+        ${
+          registration.googleCalendarLink
+            ? `<a class="button button-ghost" href="${registration.googleCalendarLink}" target="_blank" rel="noreferrer">
+                Ajouter à Google Calendar
+              </a>`
+            : ""
+        }
+        <button
+          class="button button-danger"
+          data-action="cancel-registration"
+          data-id="${registration.registrationId}"
+          type="button"
+        >
+          Annuler l’inscription
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function renderCompletedModuleCard(moduleItem) {
+  return `
+    <article class="info-card user-module-card animate-rise">
+      <div class="card-topline">
+        <span class="eyebrow eyebrow-tight">Module passé</span>
+        ${moduleItem.status ? `<span>${moduleItem.status}</span>` : ""}
+      </div>
+      <h3>${moduleItem.title}</h3>
+      <p>${moduleItem.shortDescription}</p>
+      <div class="session-meta">
+        ${moduleItem.duration ? `<div class="inline-detail">${moduleItem.duration}</div>` : ""}
+        ${
+          moduleItem.sessionDate
+            ? `<div class="inline-detail">${formatSafeDate(moduleItem.sessionDate)}</div>`
+            : ""
+        }
+      </div>
+      ${
+        moduleItem.sessionTitle
+          ? `<p class="session-notes">Session associée : ${moduleItem.sessionTitle}</p>`
+          : ""
+      }
+    </article>
+  `;
+}
+
+function renderCancelledRegistrationCard(registration) {
+  return `
+    <article class="info-card session-card animate-rise">
+      <div class="session-head">
+        <span class="category-badge">${formatSafeDate(registration.sessionDate)}</span>
+        <span class="subtle-badge">${registration.statusLabel}</span>
+      </div>
+      <h3>${registration.title}</h3>
+      <div class="session-meta">
+        ${
+          registration.timeRange
+            ? `<div class="inline-detail">${registration.timeRange}</div>`
+            : ""
+        }
+      </div>
+      ${registration.notes ? `<p class="session-notes">${registration.notes}</p>` : ""}
+    </article>
+  `;
+}
+
+async function getCurrentSupabaseSession() {
+  const { data, error } = await supabase.auth.getSession();
+  return {
+    session: data?.session ?? null,
+    error,
+  };
+}
+
+function getCurrentRelativeUrl() {
+  const pathname = window.location.pathname.split("/").pop() || routeMap.home;
+  return `${pathname}${window.location.search}`;
+}
+
+function sanitizeRedirectTarget(rawTarget, fallback) {
+  const candidate = String(rawTarget ?? "").trim();
+
+  if (!candidate) {
+    return fallback;
+  }
+
+  if (
+    candidate.startsWith("http://") ||
+    candidate.startsWith("https://") ||
+    candidate.startsWith("//") ||
+    candidate.startsWith("/")
+  ) {
+    return fallback;
+  }
+
+  return candidate;
+}
+
+function getAuthRedirectTarget(fallback = routeMap.account) {
+  return sanitizeRedirectTarget(params.get("redirect"), fallback);
+}
+
+function buildLoginRedirectHref(target = getCurrentRelativeUrl()) {
+  return `${routeMap.login}?redirect=${encodeURIComponent(target)}`;
+}
+
+function buildSignupRedirectHref(target = getCurrentRelativeUrl()) {
+  return `${routeMap.signup}?redirect=${encodeURIComponent(target)}`;
+}
+
+async function fetchUserProfileRecord(userId) {
+  if (!userId) {
+    return { data: null, error: null };
+  }
+
+  return supabase
+    .from("profiles")
+    .select("id, email, display_name, login_42, role")
+    .eq("id", userId)
+    .maybeSingle();
+}
+
+async function saveUserProfileRecord(userId, payload) {
+  if (!userId) {
+    return { error: new Error("Utilisateur introuvable.") };
+  }
+
+  const normalizedPayload = {
+    id: userId,
+    email: payload.email,
+    display_name: payload.displayName || null,
+    login_42: payload.login42 || null,
+  };
+
+  const upsertResult = await supabase
+    .from("profiles")
+    .upsert([normalizedPayload], { onConflict: "id" });
+
+  if (!upsertResult.error) {
+    return upsertResult;
+  }
+
+  return supabase
+    .from("profiles")
+    .update({
+      email: normalizedPayload.email,
+      display_name: normalizedPayload.display_name,
+      login_42: normalizedPayload.login_42,
+    })
+    .eq("id", userId);
+}
+
+function normalizeUserDashboardSummary(summaryRow, profileRow, sessionUser) {
+  return {
+    displayName:
+      summaryRow?.display_name ??
+      profileRow?.display_name ??
+      sessionUser?.user_metadata?.display_name ??
+      "",
+    email: summaryRow?.email ?? profileRow?.email ?? sessionUser?.email ?? "",
+    login42:
+      summaryRow?.login_42 ??
+      profileRow?.login_42 ??
+      sessionUser?.user_metadata?.login_42 ??
+      "",
+    upcomingRegistrationsCount:
+      normalizeOptionalNumber(summaryRow?.upcoming_registrations_count) ?? 0,
+    completedModulesCount:
+      normalizeOptionalNumber(summaryRow?.completed_modules_count) ?? 0,
+  };
+}
+
+function normalizeUpcomingRegistrationRecord(row, calendarRow) {
+  const startTime =
+    row?.start_time ?? row?.session_start_time ?? calendarRow?.start_time ?? "";
+  const endTime =
+    row?.end_time ?? row?.session_end_time ?? calendarRow?.end_time ?? "";
+  const status = row?.status ?? "registered";
+
+  return {
+    registrationId: row?.registration_id ?? row?.id ?? calendarRow?.registration_id ?? "",
+    title:
+      row?.session_title ??
+      row?.title ??
+      calendarRow?.session_title ??
+      "Session",
+    sessionDate:
+      row?.session_date ??
+      row?.date ??
+      calendarRow?.session_date ??
+      "",
+    timeRange: formatTimeRange(startTime, endTime),
+    level: row?.level ?? row?.session_level ?? "",
+    notes: row?.notes ?? row?.session_notes ?? calendarRow?.notes ?? "",
+    status,
+    statusLabel: formatRegistrationStatus(status),
+    googleCalendarLink: buildGoogleCalendarLink({
+      title:
+        row?.session_title ??
+        row?.title ??
+        calendarRow?.session_title ??
+        "Session Fablab 42 Marseille",
+      googleStart: calendarRow?.google_start ?? row?.google_start ?? "",
+      googleEnd: calendarRow?.google_end ?? row?.google_end ?? "",
+      notes: row?.notes ?? row?.session_notes ?? calendarRow?.notes ?? "",
+    }),
+  };
+}
+
+function normalizeCompletedModuleRecord(row) {
+  return {
+    title: row?.module_title ?? row?.title ?? "Module",
+    shortDescription:
+      row?.short_description ??
+      row?.module_short_description ??
+      row?.description ??
+      "",
+    duration: row?.duration ?? row?.module_duration ?? "Durée à confirmer",
+    sessionTitle: row?.session_title ?? row?.title_session ?? "",
+    sessionDate: row?.session_date ?? row?.date ?? "",
+    status: formatRegistrationStatus(row?.status ?? row?.registration_status ?? ""),
+  };
+}
+
+function formatRegistrationStatus(status) {
+  const labelMap = {
+    registered: "Inscription confirmée",
+    cancelled: "Inscription annulée",
+    attended: "Participé",
+    completed: "Complété",
+    confirmed: "Confirmé",
+    waitlisted: "Liste d’attente",
+  };
+
+  return labelMap[status] ?? status ?? "Statut inconnu";
+}
+
+function buildGoogleCalendarLink({ title, googleStart, googleEnd, notes }) {
+  if (!googleStart || !googleEnd) {
+    return "";
+  }
+
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", title || "Session Fablab 42 Marseille");
+  url.searchParams.set("dates", `${googleStart}/${googleEnd}`);
+
+  if (notes) {
+    url.searchParams.set("details", notes);
+  }
+
+  return url.toString();
+}
+
+function prefillRegistrationFormFromProfile({
+  firstNameInput,
+  lastNameInput,
+  emailInput,
+  login42Input,
+  profile,
+  sessionUser,
+}) {
+  const displayName =
+    profile?.display_name ?? sessionUser?.user_metadata?.display_name ?? "";
+  const [firstName = "", ...lastNameParts] = displayName.trim().split(/\s+/).filter(Boolean);
+  const lastName = lastNameParts.join(" ");
+
+  if (firstNameInput && !firstNameInput.value && firstName) {
+    firstNameInput.value = firstName;
+  }
+
+  if (lastNameInput && !lastNameInput.value && lastName) {
+    lastNameInput.value = lastName;
+  }
+
+  if (emailInput && !emailInput.value) {
+    emailInput.value = profile?.email ?? sessionUser?.email ?? "";
+  }
+
+  if (login42Input && !login42Input.value) {
+    login42Input.value = profile?.login_42 ?? sessionUser?.user_metadata?.login_42 ?? "";
+  }
 }
 
 function renderModuleSessionItem(session) {
@@ -3210,6 +3818,25 @@ async function hydrateSessionsPage() {
   sessionsGrid.innerHTML = data.map(renderSessionCard).join("");
 }
 
+async function hydrateAuthNavigation() {
+  const authLink = document.getElementById("nav-auth-link");
+
+  if (!authLink) {
+    return;
+  }
+
+  const { session, error } = await getCurrentSupabaseSession();
+
+  if (error || !session) {
+    authLink.href = routeMap.login;
+    authLink.textContent = "Connexion";
+    return;
+  }
+
+  authLink.href = routeMap.account;
+  authLink.textContent = "Mon espace";
+}
+
 async function hydrateRegistrationPage() {
   if (page !== "registration") {
     return;
@@ -3251,6 +3878,38 @@ async function hydrateRegistrationPage() {
     formNode.classList.add("is-hidden");
     successBox.classList.add("is-hidden");
   };
+
+  const { session: currentSession, error: currentSessionError } = await getCurrentSupabaseSession();
+
+  if (currentSessionError) {
+    showRegistrationLoadError(
+      "Votre session utilisateur n’a pas pu être vérifiée. Réessayez dans un instant.",
+    );
+    summaryNode.innerHTML = `
+      <span class="category-badge">Inscription</span>
+      <h3>Connexion impossible à vérifier</h3>
+      <p>Reconnectez-vous si le problème persiste.</p>
+    `;
+    return;
+  }
+
+  if (!currentSession) {
+    stateBox.classList.remove("is-hidden");
+    stateBox.innerHTML = renderRegistrationAuthGate();
+    formNode.classList.add("is-hidden");
+    successBox.classList.add("is-hidden");
+    summaryNode.innerHTML = `
+      <span class="category-badge">Inscription</span>
+      <h3>Connexion requise</h3>
+      <p>
+        Connectez-vous pour réserver une place et retrouver ensuite cette session dans votre
+        espace personnel.
+      </p>
+    `;
+    return;
+  }
+
+  const { data: currentProfile } = await fetchUserProfileRecord(currentSession.user.id);
 
   const updateSummary = (session) => {
     summaryNode.innerHTML = renderRegistrationSummary(session);
@@ -3318,6 +3977,14 @@ async function hydrateRegistrationPage() {
   };
 
   await hydrateAvailableSessions();
+  prefillRegistrationFormFromProfile({
+    firstNameInput,
+    lastNameInput,
+    emailInput,
+    login42Input,
+    profile: currentProfile,
+    sessionUser: currentSession.user,
+  });
 
   sessionSelect.addEventListener("change", () => {
     const nextSession =
@@ -3352,6 +4019,7 @@ async function hydrateRegistrationPage() {
     const { error } = await supabase.from("registrations").insert([
       {
         session_id: activeSession.id,
+        user_id: currentSession.user.id,
         first_name: firstName,
         last_name: lastName,
         email,
@@ -3372,6 +4040,14 @@ async function hydrateRegistrationPage() {
 
     successBox.classList.remove("is-hidden");
     formNode.reset();
+    prefillRegistrationFormFromProfile({
+      firstNameInput,
+      lastNameInput,
+      emailInput,
+      login42Input,
+      profile: currentProfile,
+      sessionUser: currentSession.user,
+    });
 
     const previousSessionId = activeSession.id;
     const sessionsStillAvailable = await hydrateAvailableSessions(previousSessionId);
@@ -3426,6 +4102,404 @@ async function hydrateModuleDetailSessions() {
   }
 
   sessionsList.innerHTML = matchingSessions.map(renderModuleSessionItem).join("");
+}
+
+async function hydrateSignupPage() {
+  if (page !== "signup") {
+    return;
+  }
+
+  const formNode = document.getElementById("user-signup-form");
+  const displayNameInput = document.getElementById("signup-display-name");
+  const login42Input = document.getElementById("signup-login-42");
+  const emailInput = document.getElementById("signup-email");
+  const passwordInput = document.getElementById("signup-password");
+  const passwordConfirmationInput = document.getElementById(
+    "signup-password-confirmation",
+  );
+  const submitButton = document.getElementById("user-signup-submit");
+  const messageNode = document.getElementById("user-signup-message");
+
+  if (
+    !formNode ||
+    !displayNameInput ||
+    !login42Input ||
+    !emailInput ||
+    !passwordInput ||
+    !passwordConfirmationInput ||
+    !submitButton ||
+    !messageNode
+  ) {
+    return;
+  }
+
+  const { session } = await getCurrentSupabaseSession();
+  if (session) {
+    window.location.href = getAuthRedirectTarget(routeMap.account);
+    return;
+  }
+
+  formNode.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const displayName = displayNameInput.value.trim();
+    const login42 = login42Input.value.trim();
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    const passwordConfirmation = passwordConfirmationInput.value;
+
+    if (password !== passwordConfirmation) {
+      messageNode.dataset.state = "error";
+      messageNode.textContent = "Les deux mots de passe doivent être identiques.";
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Création en cours...";
+    messageNode.textContent = "";
+    delete messageNode.dataset.state;
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: displayName,
+          login_42: login42 || null,
+        },
+      },
+    });
+
+    if (error) {
+      messageNode.dataset.state = "error";
+      messageNode.textContent = error.message || "Impossible de créer votre compte.";
+      submitButton.disabled = false;
+      submitButton.textContent = "Créer mon compte";
+      return;
+    }
+
+    if (data.user?.id) {
+      const profileResult = await saveUserProfileRecord(data.user.id, {
+        email,
+        displayName,
+        login42,
+      });
+
+      if (profileResult.error) {
+        if (data.session) {
+          messageNode.dataset.state = "success";
+          messageNode.textContent =
+            "Compte créé. Quelques données de profil seront finalisées après redirection.";
+          window.location.href = getAuthRedirectTarget(routeMap.account);
+          return;
+        }
+
+        messageNode.dataset.state = "success";
+        messageNode.textContent =
+          "Compte créé. Vérifiez votre boîte mail puis connectez-vous pour finaliser votre profil.";
+        submitButton.disabled = false;
+        submitButton.textContent = "Créer mon compte";
+        formNode.reset();
+        return;
+      }
+    }
+
+    if (data.session) {
+      messageNode.dataset.state = "success";
+      messageNode.textContent = "Compte créé. Redirection vers votre espace...";
+      window.location.href = getAuthRedirectTarget(routeMap.account);
+      return;
+    }
+
+    messageNode.dataset.state = "success";
+    messageNode.textContent =
+      "Compte créé. Vérifiez votre boîte mail si une confirmation est demandée, puis connectez-vous.";
+    submitButton.disabled = false;
+    submitButton.textContent = "Créer mon compte";
+    formNode.reset();
+  });
+}
+
+async function hydrateLoginPage() {
+  if (page !== "login") {
+    return;
+  }
+
+  const formNode = document.getElementById("user-login-form");
+  const emailInput = document.getElementById("user-login-email");
+  const passwordInput = document.getElementById("user-login-password");
+  const submitButton = document.getElementById("user-login-submit");
+  const messageNode = document.getElementById("user-login-message");
+
+  if (!formNode || !emailInput || !passwordInput || !submitButton || !messageNode) {
+    return;
+  }
+
+  const { session } = await getCurrentSupabaseSession();
+  if (session) {
+    window.location.href = getAuthRedirectTarget(routeMap.account);
+    return;
+  }
+
+  formNode.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Connexion en cours...";
+    messageNode.textContent = "";
+    delete messageNode.dataset.state;
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      messageNode.dataset.state = "error";
+      messageNode.textContent = error.message || "Connexion impossible.";
+      submitButton.disabled = false;
+      submitButton.textContent = "Se connecter";
+      return;
+    }
+
+    messageNode.dataset.state = "success";
+    messageNode.textContent = "Connexion réussie. Redirection...";
+    window.location.href = getAuthRedirectTarget(routeMap.account);
+  });
+}
+
+async function hydrateUserDashboardPage() {
+  if (page !== "account") {
+    return;
+  }
+
+  const { session, error } = await getCurrentSupabaseSession();
+
+  if (error) {
+    content.innerHTML = renderUserDashboardErrorPage(
+      "Votre session utilisateur n’a pas pu être vérifiée pour le moment.",
+    );
+    return;
+  }
+
+  if (!session) {
+    window.location.href = buildLoginRedirectHref(routeMap.account);
+    return;
+  }
+
+  const renderDashboard = async () => {
+    const [
+      summaryResult,
+      profileResult,
+      upcomingResult,
+      calendarResult,
+      completedResult,
+      cancelledResult,
+    ] = await Promise.all([
+      supabase.from("my_user_dashboard_summary").select("*").maybeSingle(),
+      fetchUserProfileRecord(session.user.id),
+      supabase
+        .from("my_upcoming_registrations")
+        .select("*")
+        .order("session_date", { ascending: true })
+        .order("start_time", { ascending: true }),
+      supabase
+        .from("my_calendar_ready_sessions")
+        .select("*")
+        .order("session_date", { ascending: true })
+        .order("start_time", { ascending: true }),
+      supabase
+        .from("my_completed_modules")
+        .select("*")
+        .order("session_date", { ascending: false }),
+      supabase
+        .from("my_registrations_with_sessions")
+        .select("*")
+        .eq("status", "cancelled")
+        .order("session_date", { ascending: false }),
+    ]);
+
+    if (summaryResult.error && profileResult.error) {
+      content.innerHTML = renderUserDashboardErrorPage(
+        summaryResult.error?.message ||
+          profileResult.error?.message ||
+          "Impossible de charger votre espace pour le moment.",
+      );
+      return;
+    }
+
+    const calendarMap = new Map(
+      (calendarResult.data ?? []).map((item) => [
+        String(item.registration_id ?? item.id),
+        item,
+      ]),
+    );
+
+    const upcomingRegistrations = upcomingResult.error
+      ? []
+      : (upcomingResult.data ?? []).map((item) =>
+          normalizeUpcomingRegistrationRecord(
+            item,
+            calendarMap.get(String(item.registration_id ?? item.id)),
+          ),
+        );
+
+    const completedModules = completedResult.error
+      ? []
+      : (completedResult.data ?? []).map(normalizeCompletedModuleRecord);
+
+    const cancelledRegistrations = cancelledResult.error
+      ? []
+      : (cancelledResult.data ?? [])
+          .filter((item) => String(item.status).toLowerCase() === "cancelled")
+          .map((item) => normalizeUpcomingRegistrationRecord(item, null));
+
+    const summary = normalizeUserDashboardSummary(
+      summaryResult.data,
+      profileResult.data,
+      session.user,
+    );
+
+    if (!summaryResult.data) {
+      summary.upcomingRegistrationsCount = upcomingRegistrations.length;
+      summary.completedModulesCount = completedModules.length;
+    }
+
+    content.innerHTML = renderUserDashboardPage(summary);
+
+    const upcomingNode = document.getElementById("user-upcoming-registrations");
+    const completedNode = document.getElementById("user-completed-modules");
+    const cancelledNode = document.getElementById("user-cancelled-registrations");
+    const cancelledSection = document.getElementById("user-cancelled-section");
+    const dashboardMessageNode = document.getElementById("user-dashboard-message");
+    const logoutButton = document.getElementById("user-logout-button");
+
+    if (upcomingNode) {
+      if (upcomingResult.error) {
+        upcomingNode.innerHTML = renderUserStateCard(
+          "Erreur",
+          "Impossible de charger vos sessions à venir",
+          upcomingResult.error.message || "Réessayez dans un instant.",
+        );
+      } else if (!upcomingRegistrations.length) {
+        upcomingNode.innerHTML = renderUserStateCard(
+          "Agenda",
+          "Aucune session future",
+          "Vous n’êtes inscrit à aucune session à venir pour le moment.",
+        );
+      } else {
+        upcomingNode.innerHTML = upcomingRegistrations.map(renderUpcomingRegistrationCard).join("");
+      }
+    }
+
+    if (completedNode) {
+      if (completedResult.error) {
+        completedNode.innerHTML = renderUserStateCard(
+          "Erreur",
+          "Impossible de charger vos modules passés",
+          completedResult.error.message || "Réessayez dans un instant.",
+        );
+      } else if (!completedModules.length) {
+        completedNode.innerHTML = renderUserStateCard(
+          "Parcours",
+          "Aucun module passé",
+          "Vos modules déjà suivis apparaîtront ici une fois vos sessions terminées.",
+        );
+      } else {
+        completedNode.innerHTML = completedModules.map(renderCompletedModuleCard).join("");
+      }
+    }
+
+    if (cancelledSection && cancelledNode) {
+      if (cancelledRegistrations.length) {
+        cancelledSection.classList.remove("is-hidden");
+        cancelledNode.innerHTML = cancelledRegistrations
+          .map(renderCancelledRegistrationCard)
+          .join("");
+      } else {
+        cancelledSection.classList.add("is-hidden");
+        cancelledNode.innerHTML = "";
+      }
+    }
+
+    if (logoutButton) {
+      logoutButton.addEventListener("click", async () => {
+        logoutButton.disabled = true;
+        logoutButton.textContent = "Déconnexion...";
+        setAdminMessage(dashboardMessageNode);
+
+        const { error: signOutError } = await supabase.auth.signOut();
+
+        if (signOutError) {
+          setAdminMessage(
+            dashboardMessageNode,
+            "error",
+            signOutError.message || "La déconnexion a échoué.",
+          );
+          logoutButton.disabled = false;
+          logoutButton.textContent = "Se déconnecter";
+          return;
+        }
+
+        window.location.href = routeMap.login;
+      });
+    }
+
+    if (upcomingNode) {
+      upcomingNode.addEventListener("click", async (event) => {
+        const button = event.target.closest('[data-action="cancel-registration"][data-id]');
+
+        if (!button) {
+          return;
+        }
+
+        const registrationId = button.dataset.id;
+        const targetRegistration = upcomingRegistrations.find(
+          (item) => String(item.registrationId) === String(registrationId),
+        );
+
+        if (
+          !targetRegistration ||
+          !window.confirm(`Annuler l’inscription à ${targetRegistration.title} ?`)
+        ) {
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = "Annulation...";
+        setAdminMessage(dashboardMessageNode);
+
+        const { error: updateError } = await supabase
+          .from("registrations")
+          .update({ status: "cancelled" })
+          .eq("id", registrationId)
+          .eq("user_id", session.user.id);
+
+        if (updateError) {
+          setAdminMessage(
+            dashboardMessageNode,
+            "error",
+            updateError.message || "Impossible d’annuler cette inscription.",
+          );
+          button.disabled = false;
+          button.textContent = "Annuler l’inscription";
+          return;
+        }
+
+        setAdminMessage(
+          dashboardMessageNode,
+          "success",
+          "Inscription annulée. Vos données sont en cours de mise à jour.",
+        );
+        await renderDashboard();
+      });
+    }
+  };
+
+  await renderDashboard();
 }
 
 async function hydrateAdminLoginPage() {

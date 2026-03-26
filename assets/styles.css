@@ -147,6 +147,11 @@ button {
   gap: 0.5rem;
 }
 
+.nav-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .nav-link {
   padding: 0.85rem 1rem;
   border-radius: 999px;
@@ -743,6 +748,38 @@ p {
   align-items: start;
 }
 
+.user-hero-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.user-profile-card,
+.user-actions-card,
+.user-session-card,
+.user-module-card {
+  align-content: start;
+}
+
+.user-profile-meta,
+.user-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.user-actions-row {
+  align-items: center;
+}
+
+.user-metrics-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.registration-gate {
+  display: grid;
+  gap: 1rem;
+}
+
 .info-card {
   display: grid;
   gap: 1rem;
@@ -1004,6 +1041,11 @@ tr:last-child td {
     align-items: center;
   }
 
+  .nav-actions {
+    grid-auto-flow: column;
+    align-items: center;
+  }
+
   .page-shell,
   .site-footer {
     width: min(calc(100% - 3rem), var(--container));
@@ -1055,6 +1097,11 @@ tr:last-child td {
     grid-template-columns: minmax(0, 1.15fr) auto;
     align-items: center;
     gap: 1.5rem;
+  }
+
+  .user-hero-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.92fr);
+    align-items: start;
   }
 
   .admin-session-actions {
