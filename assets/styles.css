@@ -543,39 +543,31 @@ p {
   font-weight: 800;
 }
 
-.supabase-test-card {
-  display: grid;
-  gap: 1rem;
+.event-card {
+  align-content: start;
 }
 
-.supabase-test-status {
-  padding: 0.95rem 1rem;
-  border-radius: var(--radius-md);
+.event-card-head,
+.event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.event-card-head {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.event-date-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
   background: var(--surface-blue);
-  border: 1px solid rgba(129, 166, 198, 0.2);
-  font-weight: 700;
-}
-
-.supabase-test-status[data-state="success"] {
-  background: rgba(170, 205, 220, 0.72);
-}
-
-.supabase-test-status[data-state="error"] {
-  background: rgba(243, 227, 208, 0.95);
-}
-
-.supabase-test-output {
-  margin: 0;
-  padding: 1rem;
-  overflow: auto;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(31, 35, 37, 0.08);
-  background: var(--white);
   color: var(--ink);
   font-size: 0.88rem;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
+  font-weight: 700;
 }
 
 .metric-card {

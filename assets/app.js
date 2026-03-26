@@ -39,7 +39,7 @@ const pageParent = {
 renderShell();
 renderPage();
 bindInteractions();
-runSupabaseEventsSmokeTest();
+hydrateEventsPage();
 
 function renderShell() {
   const activeKey = pageParent[page] ?? page;
@@ -490,18 +490,8 @@ function renderEventsPage() {
         )}
       </section>
 
-      <section class="section-card supabase-test-card animate-rise">
-        <div class="section-heading">
-          <span class="eyebrow">Test Supabase</span>
-          <h2>Connexion events</h2>
-          <p>Bloc temporaire pour valider la lecture frontend de la table <code>events</code>.</p>
-        </div>
-        <div class="supabase-test-status" id="supabase-events-status">Chargement des événements...</div>
-        <pre class="supabase-test-output" id="supabase-events-output">En attente de la réponse Supabase...</pre>
-      </section>
-
-      <section class="card-grid two-columns">
-        ${events.map(renderEventCard).join("")}
+      <section class="card-grid two-columns" id="events-grid">
+        ${renderEventsLoadingState()}
       </section>
     </div>
   `;
@@ -606,14 +596,50 @@ function renderModuleCard(module) {
 }
 
 function renderEventCard(event) {
+  const normalizedEvent = normalizeEvent(event);
+
   return `
     <article class="info-card event-card animate-rise">
-      <span class="category-badge">${event.category}</span>
-      <h3>${event.title}</h3>
-      <div class="inline-detail">${formatDate(event.date)}</div>
-      <p>${event.description}</p>
+      <div class="event-card-head">
+        <span class="event-date-badge">${formatDate(normalizedEvent.date)}</span>
+        <span class="category-badge">${normalizedEvent.category}</span>
+      </div>
+      <h3>${normalizedEvent.title}</h3>
+      <p>${normalizedEvent.description}</p>
+      ${
+        normalizedEvent.meta.length
+          ? `<div class="event-meta">${normalizedEvent.meta
+              .map((item) => `<span class="subtle-badge">${item}</span>`)
+              .join("")}</div>`
+          : ""
+      }
     </article>
   `;
+}
+
+function normalizeEvent(event) {
+  const startTime = event.start_time ?? event.startTime ?? null;
+  const endTime = event.end_time ?? event.endTime ?? null;
+  const location = event.location ?? null;
+
+  const meta = [];
+  const timeRange = formatTimeRange(startTime, endTime);
+
+  if (timeRange) {
+    meta.push(timeRange);
+  }
+
+  if (location) {
+    meta.push(location);
+  }
+
+  return {
+    title: event.title,
+    category: event.category ?? event.location ?? "Événement",
+    date: event.date ?? event.event_date,
+    description: event.short_description ?? event.description ?? "",
+    meta,
+  };
 }
 
 function renderSessionCard(session) {
@@ -710,6 +736,61 @@ function formatShortDate(date) {
   }).format(new Date(date));
 }
 
+function formatTimeRange(startTime, endTime) {
+  const start = formatTime(startTime);
+  const end = formatTime(endTime);
+
+  if (start && end) {
+    return `${start} - ${end}`;
+  }
+
+  return start || end || "";
+}
+
+function formatTime(timeValue) {
+  if (!timeValue) {
+    return "";
+  }
+
+  const [hours = "", minutes = ""] = String(timeValue).split(":");
+
+  if (!hours || !minutes) {
+    return String(timeValue);
+  }
+
+  return `${hours}:${minutes}`;
+}
+
+function renderEventsLoadingState() {
+  return `
+    <article class="info-card event-card animate-rise">
+      <span class="event-date-badge">Chargement</span>
+      <h3>Récupération des événements</h3>
+      <p>Les événements planifiés sont en cours de chargement depuis Supabase.</p>
+    </article>
+  `;
+}
+
+function renderEventsEmptyState() {
+  return `
+    <article class="info-card event-card animate-rise">
+      <span class="event-date-badge">Agenda</span>
+      <h3>Aucun événement planifié pour le moment</h3>
+      <p>Le fablab n’a pas encore publié de prochain rendez-vous.</p>
+    </article>
+  `;
+}
+
+function renderEventsErrorState() {
+  return `
+    <article class="info-card event-card animate-rise">
+      <span class="event-date-badge">Erreur</span>
+      <h3>Impossible de charger les événements</h3>
+      <p>Le planning n’a pas pu être récupéré pour le moment. Réessayez un peu plus tard.</p>
+    </article>
+  `;
+}
+
 function bindInteractions() {
   const menuButton = document.querySelector(".menu-toggle");
   const navPanel = document.querySelector(".nav-panel");
@@ -753,19 +834,16 @@ function bindInteractions() {
   }
 }
 
-async function runSupabaseEventsSmokeTest() {
+async function hydrateEventsPage() {
   if (page !== "events") {
     return;
   }
 
-  const statusNode = document.getElementById("supabase-events-status");
-  const outputNode = document.getElementById("supabase-events-output");
+  const eventsGrid = document.getElementById("events-grid");
 
-  if (!statusNode || !outputNode) {
+  if (!eventsGrid) {
     return;
   }
-
-  statusNode.textContent = "Chargement des événements depuis Supabase...";
 
   const { data, error } = await supabase
     .from("events")
@@ -776,13 +854,14 @@ async function runSupabaseEventsSmokeTest() {
   console.log("events error:", error);
 
   if (error) {
-    statusNode.textContent = `Erreur Supabase : ${error.message}`;
-    statusNode.dataset.state = "error";
-    outputNode.textContent = JSON.stringify(error, null, 2);
+    eventsGrid.innerHTML = renderEventsErrorState();
     return;
   }
 
-  statusNode.textContent = `${data.length} événement(s) récupéré(s) depuis Supabase.`;
-  statusNode.dataset.state = "success";
-  outputNode.textContent = JSON.stringify(data, null, 2);
+  if (!data || data.length === 0) {
+    eventsGrid.innerHTML = renderEventsEmptyState();
+    return;
+  }
+
+  eventsGrid.innerHTML = data.map(renderEventCard).join("");
 }
