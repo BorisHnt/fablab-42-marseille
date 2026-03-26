@@ -780,6 +780,14 @@ p {
   gap: 1rem;
 }
 
+.registration-summary .category-badge,
+.registration-summary .subtle-badge,
+.registration-summary .button {
+  width: fit-content;
+  max-width: 100%;
+  justify-self: start;
+}
+
 .info-card {
   display: grid;
   gap: 1rem;

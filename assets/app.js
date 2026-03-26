@@ -1214,6 +1214,22 @@ function renderAdminErrorPage() {
   `;
 }
 
+function renderAdminAccessDeniedPage() {
+  return `
+    <section class="section-card animate-rise">
+      ${sectionHeading(
+        "Admin",
+        "Accès refusé",
+        "Votre session est bien active, mais ce compte ne dispose pas des droits nécessaires pour accéder à l’administration.",
+      )}
+      <div class="section-action">
+        <a class="button button-primary" href="${routeMap.account}">Aller vers mon espace</a>
+        <a class="button button-ghost" href="${routeMap.home}">Retour à l’accueil</a>
+      </div>
+    </section>
+  `;
+}
+
 function renderAdminLoginPage() {
   return `
     <div class="page-flow">
@@ -4553,10 +4569,9 @@ async function hydrateAdminPage() {
     return;
   }
 
-  const { data, error } = await supabase.auth.getSession();
-  const session = data?.session ?? null;
+  const { session, error } = await getCurrentSupabaseSession();
 
-  console.log("admin session data:", data);
+  console.log("admin session data:", session);
   console.log("admin session error:", error);
 
   if (error) {
@@ -4566,6 +4581,24 @@ async function hydrateAdminPage() {
 
   if (!session) {
     window.location.href = routeMap.adminLogin;
+    return;
+  }
+
+  const { data: profile, error: profileError } = await fetchUserProfileRecord(session.user.id);
+
+  console.log("admin profile data:", profile);
+  console.log("admin profile error:", profileError);
+
+  if (profileError) {
+    content.innerHTML = renderAdminErrorPage();
+    return;
+  }
+
+  if (profile?.role !== "admin") {
+    content.innerHTML = renderAdminAccessDeniedPage();
+    window.setTimeout(() => {
+      window.location.href = routeMap.account;
+    }, 1800);
     return;
   }
 
