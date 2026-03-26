@@ -368,7 +368,6 @@ p {
 }
 
 .hero-actions,
-.hero-meta,
 .tag-row,
 .filter-row,
 .session-head,
@@ -387,7 +386,6 @@ p {
   margin-top: 0.25rem;
 }
 
-.meta-pill,
 .tag,
 .subtle-badge,
 .category-badge,
@@ -400,7 +398,6 @@ p {
   font-size: 0.88rem;
 }
 
-.meta-pill,
 .subtle-badge,
 .filter-pill {
   background: var(--white);

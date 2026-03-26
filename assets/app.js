@@ -225,10 +225,6 @@ function renderHomePage() {
             <a class="button button-primary" href="${routeMap.sessions}">Découvrir les sessions</a>
             <a class="button button-ghost" href="${routeMap.modules}">Parcourir les modules</a>
           </div>
-          <div class="hero-meta">
-            <span class="meta-pill">Création concrète</span>
-            <span class="meta-pill">Électronique et Arduino</span>
-          </div>
         </div>
 
         <div class="hero-visual">
@@ -236,8 +232,8 @@ function renderHomePage() {
             ${renderHomeFeaturedEventLoadingState()}
           </div>
 
-          <div class="hero-stack" id="home-hero-modules">
-            ${renderHomeHeroModulesLoadingState()}
+          <div class="hero-stack" id="home-hero-sessions">
+            ${renderHomeHeroSessionsLoadingState()}
           </div>
         </div>
       </section>
@@ -1402,36 +1398,37 @@ function renderHomeFeaturedEvent(event) {
   `;
 }
 
-function renderHomeHeroModulesLoadingState() {
+function renderHomeHeroSessionsLoadingState() {
   return Array.from({ length: 2 })
     .map(
       () => `
         <article class="hero-panel hero-panel-mini">
           <span>Chargement</span>
-          <p>Les modules du fablab sont en cours de récupération.</p>
+          <p>Les prochaines sessions sont en cours de récupération.</p>
         </article>
       `,
     )
     .join("");
 }
 
-function renderHomeHeroModules(modulesList) {
-  if (!modulesList.length) {
+function renderHomeHeroSessions(sessionsList) {
+  if (!sessionsList.length) {
     return `
       <article class="hero-panel hero-panel-mini">
-        <span>Modules</span>
-        <p>Les modules publiés apparaîtront ici dès qu’ils seront disponibles.</p>
+        <span>Sessions</span>
+        <p>Les prochaines sessions apparaîtront ici dès qu’elles seront publiées.</p>
       </article>
     `;
   }
 
-  return modulesList
+  return sessionsList
     .slice(0, 2)
     .map(
-      (moduleItem) => `
+      (sessionItem) => `
         <article class="hero-panel hero-panel-mini">
-          <span>${moduleItem.title}</span>
-          <p>${moduleItem.shortText}</p>
+          <span>${sessionItem.title}</span>
+          <p>${formatSafeDate(sessionItem.date)}</p>
+          <p>${sessionItem.seatLabel || "Places à confirmer"}</p>
         </article>
       `,
     )
@@ -4337,7 +4334,7 @@ async function hydrateHomePageData() {
 
   const eventsGrid = document.getElementById("home-events-grid");
   const featuredEventNode = document.getElementById("home-featured-event");
-  const heroModulesNode = document.getElementById("home-hero-modules");
+  const heroSessionsNode = document.getElementById("home-hero-sessions");
   const modulesGrid = document.getElementById("home-modules-grid");
   const highlightsGrid = document.getElementById("home-highlights-grid");
   const metricsGrid = document.getElementById("home-metrics-grid");
@@ -4345,7 +4342,7 @@ async function hydrateHomePageData() {
   if (
     !eventsGrid ||
     !featuredEventNode ||
-    !heroModulesNode ||
+    !heroSessionsNode ||
     !modulesGrid ||
     !highlightsGrid ||
     !metricsGrid
@@ -4353,12 +4350,13 @@ async function hydrateHomePageData() {
     return;
   }
 
-  const [eventsResult, modulesResult, sessionsCountResult, eventsCountResult] =
+  const [eventsResult, modulesResult, sessionsCountResult, eventsCountResult, sessionsResult] =
     await Promise.all([
       fetchEvents(3),
       fetchPublicModules(),
       fetchUpcomingSessionsCount(),
       fetchPublishedEventsCount(),
+      fetchSessions(),
     ]);
 
   console.log("home events data:", eventsResult.data);
@@ -4369,6 +4367,8 @@ async function hydrateHomePageData() {
   console.log("home sessions count error:", sessionsCountResult.error);
   console.log("home events count:", eventsCountResult.count);
   console.log("home events count error:", eventsCountResult.error);
+  console.log("home sessions data:", sessionsResult.data);
+  console.log("home sessions error:", sessionsResult.error);
 
   if (eventsResult.error) {
     eventsGrid.innerHTML = renderEventsErrorState(
@@ -4389,7 +4389,11 @@ async function hydrateHomePageData() {
     ? []
     : (modulesResult.data ?? []).map(normalizePublicModuleRecord);
 
-  heroModulesNode.innerHTML = renderHomeHeroModules(publicModules);
+  const upcomingSessions = sessionsResult.error
+    ? []
+    : (sessionsResult.data ?? []).map(normalizeSession).slice(0, 2);
+
+  heroSessionsNode.innerHTML = renderHomeHeroSessions(upcomingSessions);
   modulesGrid.innerHTML = publicModules.length
     ? publicModules.map(renderModuleCard).join("")
     : renderHomeModulesEmptyState(
