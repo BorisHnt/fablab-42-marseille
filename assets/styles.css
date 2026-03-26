@@ -588,6 +588,7 @@ p {
 .admin-section-grid {
   display: grid;
   gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .admin-panel {
@@ -1059,11 +1060,6 @@ tr:last-child td {
   .admin-session-actions {
     justify-items: end;
     min-width: 14rem;
-  }
-
-  .admin-section-grid {
-    grid-template-columns: minmax(18rem, 0.92fr) minmax(0, 1.08fr);
-    align-items: start;
   }
 
   .admin-field-grid {
