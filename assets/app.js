@@ -6,12 +6,14 @@ import {
   modules,
   sessions,
 } from "./data.js";
+import { supabase } from "./supabase-client.js";
 
 const page = document.body.dataset.page;
 const content = document.getElementById("page-content");
 const header = document.getElementById("site-header");
 const footer = document.getElementById("site-footer");
 const params = new URLSearchParams(window.location.search);
+window.supabase = supabase;
 
 const routeMap = {
   home: "index.html",
@@ -37,6 +39,7 @@ const pageParent = {
 renderShell();
 renderPage();
 bindInteractions();
+runSupabaseEventsSmokeTest();
 
 function renderShell() {
   const activeKey = pageParent[page] ?? page;
@@ -487,6 +490,16 @@ function renderEventsPage() {
         )}
       </section>
 
+      <section class="section-card supabase-test-card animate-rise">
+        <div class="section-heading">
+          <span class="eyebrow">Test Supabase</span>
+          <h2>Connexion events</h2>
+          <p>Bloc temporaire pour valider la lecture frontend de la table <code>events</code>.</p>
+        </div>
+        <div class="supabase-test-status" id="supabase-events-status">Chargement des événements...</div>
+        <pre class="supabase-test-output" id="supabase-events-output">En attente de la réponse Supabase...</pre>
+      </section>
+
       <section class="card-grid two-columns">
         ${events.map(renderEventCard).join("")}
       </section>
@@ -738,4 +751,38 @@ function bindInteractions() {
       successBox.classList.remove("is-hidden");
     });
   }
+}
+
+async function runSupabaseEventsSmokeTest() {
+  if (page !== "events") {
+    return;
+  }
+
+  const statusNode = document.getElementById("supabase-events-status");
+  const outputNode = document.getElementById("supabase-events-output");
+
+  if (!statusNode || !outputNode) {
+    return;
+  }
+
+  statusNode.textContent = "Chargement des événements depuis Supabase...";
+
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .order("event_date", { ascending: true });
+
+  console.log("events data:", data);
+  console.log("events error:", error);
+
+  if (error) {
+    statusNode.textContent = `Erreur Supabase : ${error.message}`;
+    statusNode.dataset.state = "error";
+    outputNode.textContent = JSON.stringify(error, null, 2);
+    return;
+  }
+
+  statusNode.textContent = `${data.length} événement(s) récupéré(s) depuis Supabase.`;
+  statusNode.dataset.state = "success";
+  outputNode.textContent = JSON.stringify(data, null, 2);
 }
