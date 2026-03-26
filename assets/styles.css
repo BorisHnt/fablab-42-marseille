@@ -490,6 +490,21 @@ p {
   font-size: 0.88rem;
 }
 
+.session-action-feedback {
+  min-height: 1.2rem;
+  margin: 0;
+  color: rgba(31, 35, 37, 0.58);
+  font-size: 0.88rem;
+}
+
+.session-action-feedback[data-state="error"] {
+  color: #8b4b44;
+}
+
+.session-action-feedback[data-state="success"] {
+  color: #355c4b;
+}
+
 .hero-panel-header,
 .inline-detail,
 .card-topline {
@@ -1043,6 +1058,20 @@ p {
   min-width: 0;
 }
 
+.schedule-item-actions {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: end;
+}
+
+.schedule-item-actions .button {
+  width: auto;
+}
+
+.schedule-item-actions .session-action-feedback {
+  text-align: right;
+}
+
 .schedule-item span {
   display: block;
   margin-top: 0.2rem;
@@ -1097,6 +1126,12 @@ p {
   padding: 1.15rem;
   border-radius: var(--radius-md);
   background: var(--surface-warm);
+}
+
+.signup-form + .empty-state,
+.signup-form + .success-box,
+.empty-state + .success-box {
+  margin-top: 0.85rem;
 }
 
 .table-card {
@@ -1341,7 +1376,8 @@ tr:last-child td {
   }
 
   .hero-actions .button,
-  .section-action .button {
+  .section-action .button,
+  .schedule-item-actions .button {
     width: auto;
   }
 

@@ -253,17 +253,6 @@ function renderHomePage() {
         </div>
       </section>
 
-      <section class="section-card section-card-soft animate-rise">
-        ${sectionHeading(
-          "Modules",
-          "Deux portes d’entrée pour commencer",
-          "Le parcours démarre avec des bases claires, un rythme doux, et des objectifs immédiatement concrets.",
-        )}
-        <div class="card-grid two-columns" id="home-modules-grid">
-          ${renderHomeModulesLoadingState()}
-        </div>
-      </section>
-
       <section class="feature-band animate-rise">
         <div class="feature-copy">
           ${sectionHeading(
@@ -275,27 +264,6 @@ function renderHomePage() {
         </div>
         <div class="feature-list" id="home-highlights-grid">
           ${renderHomeHighlightsLoadingState()}
-        </div>
-      </section>
-
-      <section class="section-card animate-rise">
-        ${sectionHeading(
-          "Vue rapide",
-          "Le site met en avant l’activité réelle du fablab",
-          "Sessions, événements et fonctionnement sont déjà organisés pour accueillir plus tard une vraie logique d’inscription.",
-        )}
-        <div class="metrics-grid" id="home-metrics-grid">
-          <article class="metric-card">
-            <strong>Chargement des données</strong>
-            <span>Les informations réelles du fablab sont en cours de récupération.</span>
-          </article>
-          <article class="metric-card">
-            <strong>Chargement des modules</strong>
-            <span>Les portes d’entrée pédagogiques sont en cours de lecture.</span>
-          </article>
-        </div>
-        <div class="section-action">
-          <a class="button button-ghost" href="${routeMap.admin}">Explorer la structure admin</a>
         </div>
       </section>
     </div>
@@ -1436,38 +1404,6 @@ function renderHomeHeroSessions(sessionsList) {
     .join("");
 }
 
-function renderHomeModulesLoadingState() {
-  return Array.from({ length: 2 })
-    .map(
-      () => `
-        <article class="info-card module-card animate-rise">
-          <div class="card-topline">
-            <span class="eyebrow eyebrow-tight">Module</span>
-            <span>…</span>
-          </div>
-          <h3>Chargement du module</h3>
-          <p>Les informations du catalogue sont en cours de récupération.</p>
-          <p class="muted-text">Les contenus du fablab apparaîtront ici dès que la base répondra.</p>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-function renderHomeModulesEmptyState(text) {
-  return `
-    <article class="info-card module-card animate-rise">
-      <div class="card-topline">
-        <span class="eyebrow eyebrow-tight">Modules</span>
-        <span>—</span>
-      </div>
-      <h3>Catalogue indisponible</h3>
-      <p>${text}</p>
-      <p class="muted-text">Les modules publiés apparaîtront ici dès que les données seront disponibles.</p>
-    </article>
-  `;
-}
-
 function renderHomeHighlightsLoadingState() {
   return Array.from({ length: 3 })
     .map(
@@ -1515,23 +1451,6 @@ function renderHomeFeatureItems(stats) {
     .join("");
 }
 
-function renderHomeMetrics(stats) {
-  return `
-    <article class="metric-card">
-      <strong>${stats.sessionCount} session${stats.sessionCount === 1 ? "" : "s"} à venir</strong>
-      <span>Des inscriptions réelles déjà prêtes à être consultées et réservées.</span>
-    </article>
-    <article class="metric-card">
-      <strong>${stats.moduleCount} module${stats.moduleCount === 1 ? "" : "s"} publié${stats.moduleCount === 1 ? "" : "s"}</strong>
-      <span>Le catalogue visible sur l’accueil vient directement de la base du fablab.</span>
-    </article>
-    <article class="metric-card">
-      <strong>${stats.eventCount} événement${stats.eventCount === 1 ? "" : "s"} planifié${stats.eventCount === 1 ? "" : "s"}</strong>
-      <span>L’agenda et le hero reflètent maintenant les données réelles de Supabase.</span>
-    </article>
-  `;
-}
-
 function renderEventCard(event) {
   return renderNormalizedEventCard(normalizeEvent(event));
 }
@@ -1574,7 +1493,7 @@ function normalizePublicModuleRecord(moduleItem) {
   };
 }
 
-function renderSessionCard(session) {
+function renderSessionCard(session, registrationIndex = new Map()) {
   const normalizedSession = normalizeSession(session);
 
   return `
@@ -1608,17 +1527,49 @@ function renderSessionCard(session) {
           ? `<p class="session-notes">${normalizedSession.notes}</p>`
           : ""
       }
-      <div class="session-cta">
-        <a class="button button-primary button-block" href="${registrationLink(normalizedSession.id)}">
-          S’inscrire
-        </a>
-        <span class="session-availability">Formulaire d’inscription prêt</span>
-      </div>
+      ${renderPublicSessionCta(normalizedSession, { registrationIndex })}
     </article>
   `;
 }
 
-function renderHomeAgendaCards(eventsList, sessionsList) {
+function renderPublicSessionCta(session, { registrationIndex = new Map(), buttonBlock = true } = {}) {
+  const registrationRecord = registrationIndex.get(String(session.id));
+  const buttonClassName = buttonBlock ? "button button-primary button-block" : "button button-primary";
+  const ghostButtonClassName = buttonBlock ? "button button-ghost button-block" : "button button-ghost";
+  const dangerButtonClassName = buttonBlock ? "button button-danger button-block" : "button button-danger";
+
+  if (!registrationRecord) {
+    return `
+      <div class="session-cta">
+        <a class="${buttonClassName}" href="${registrationLink(session.id)}">
+          S’inscrire
+        </a>
+        <span class="session-availability">Formulaire d’inscription prêt</span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="session-cta">
+      <a class="${ghostButtonClassName}" href="${routeMap.account}">
+        Déjà inscrit
+      </a>
+      <button
+        class="${dangerButtonClassName}"
+        data-action="cancel-public-registration"
+        data-registration-id="${escapeHtml(registrationRecord.id)}"
+        data-session-id="${escapeHtml(session.id)}"
+        type="button"
+      >
+        Se désinscrire
+      </button>
+      <span class="session-availability">Vous avez déjà une inscription active sur cette session.</span>
+      <p class="session-action-feedback" data-session-feedback="${escapeHtml(session.id)}" aria-live="polite"></p>
+    </div>
+  `;
+}
+
+function renderHomeAgendaCards(eventsList, sessionsList, registrationIndex = new Map()) {
   const normalizedEvents = (eventsList ?? []).map(normalizeEvent);
   const normalizedSessions = (sessionsList ?? []).map(normalizeSession);
   const cards = [];
@@ -1656,7 +1607,11 @@ function renderHomeAgendaCards(eventsList, sessionsList) {
 
   return cards
     .slice(0, 3)
-    .map((item) => (item.kind === "session" ? renderHomeAgendaSessionCard(item.payload) : renderNormalizedEventCard(item.payload)))
+    .map((item) =>
+      item.kind === "session"
+        ? renderHomeAgendaSessionCard(item.payload, registrationIndex)
+        : renderNormalizedEventCard(item.payload),
+    )
     .join("");
 }
 
@@ -3964,7 +3919,7 @@ function renderEventsLoadingState(label = "Chargement", text = "Les événements
   `;
 }
 
-function renderHomeAgendaSessionCard(session) {
+function renderHomeAgendaSessionCard(session, registrationIndex = new Map()) {
   return `
     <article class="info-card session-card session-card-compact animate-rise">
       <div class="session-head">
@@ -3984,11 +3939,7 @@ function renderHomeAgendaSessionCard(session) {
               .join("")}</div>`
           : ""
       }
-      <div class="session-cta">
-        <a class="button button-primary button-block" href="${registrationLink(session.id)}">
-          S’inscrire
-        </a>
-      </div>
+      ${renderPublicSessionCta(session, { registrationIndex })}
     </article>
   `;
 }
@@ -4205,6 +4156,36 @@ async function getCurrentSupabaseSession() {
   };
 }
 
+async function fetchCurrentUserActiveRegistrationIndex() {
+  const { session, error } = await getCurrentSupabaseSession();
+
+  if (error || !session?.user?.id) {
+    return {
+      session: null,
+      error,
+      registrationIndex: new Map(),
+    };
+  }
+
+  const { data, error: registrationsError } = await supabase
+    .from("registrations")
+    .select("id, session_id, status")
+    .eq("user_id", session.user.id)
+    .neq("status", "cancelled");
+
+  const registrationIndex = new Map(
+    (data ?? [])
+      .filter((item) => item?.session_id)
+      .map((item) => [String(item.session_id), item]),
+  );
+
+  return {
+    session,
+    error: registrationsError,
+    registrationIndex,
+  };
+}
+
 function getCurrentRelativeUrl() {
   const pathname = window.location.pathname.split("/").pop() || routeMap.home;
   return `${pathname}${window.location.search}`;
@@ -4415,16 +4396,40 @@ function prefillRegistrationFormFromProfile({
   }
 }
 
-function renderModuleSessionItem(session) {
+function renderModuleSessionItem(session, registrationIndex = new Map()) {
+  const registrationRecord = registrationIndex.get(String(session.id));
+
   return `
-    <a class="schedule-item" href="${registrationLink(session.id)}">
+    <div class="schedule-item">
       <div>
         <strong>${formatDate(session.date)}</strong>
         <span>${session.timeRange || "Horaire à confirmer"}</span>
         ${session.seatLabel ? `<span>${session.seatLabel}</span>` : ""}
       </div>
-      <span>→</span>
-    </a>
+      <div class="schedule-item-actions">
+        ${
+          registrationRecord
+            ? `
+              <a class="button button-ghost button-small" href="${routeMap.account}">Déjà inscrit</a>
+              <button
+                class="button button-danger button-small"
+                data-action="cancel-public-registration"
+                data-registration-id="${escapeHtml(registrationRecord.id)}"
+                data-session-id="${escapeHtml(session.id)}"
+                type="button"
+              >
+                Se désinscrire
+              </button>
+            `
+            : `
+              <a class="button button-primary button-small" href="${registrationLink(session.id)}">
+                S’inscrire
+              </a>
+            `
+        }
+        <p class="session-action-feedback" data-session-feedback="${escapeHtml(session.id)}" aria-live="polite"></p>
+      </div>
+    </div>
   `;
 }
 
@@ -4472,15 +4477,6 @@ async function fetchPublicModules() {
     .order("title", { ascending: true });
 }
 
-async function fetchUpcomingSessionsCount() {
-  const today = new Date().toISOString().slice(0, 10);
-
-  return supabase
-    .from("sessions")
-    .select("id", { count: "exact", head: true })
-    .gte("session_date", today);
-}
-
 async function fetchPublishedEventsCount() {
   return supabase
     .from("events")
@@ -4505,6 +4501,89 @@ function bindInteractions() {
       menuButton.setAttribute("aria-expanded", String(isOpen));
     });
   }
+}
+
+function setSessionActionFeedback(container, sessionId, state, text) {
+  const feedbackNode = container?.querySelector(
+    `[data-session-feedback="${CSS.escape(String(sessionId))}"]`,
+  );
+
+  if (!feedbackNode) {
+    return;
+  }
+
+  feedbackNode.textContent = text ?? "";
+
+  if (state && text) {
+    feedbackNode.dataset.state = state;
+    return;
+  }
+
+  delete feedbackNode.dataset.state;
+}
+
+function bindPublicRegistrationActions(container, refreshHandler) {
+  if (!container || container.dataset.publicRegistrationActionsBound === "true") {
+    return;
+  }
+
+  container.dataset.publicRegistrationActionsBound = "true";
+
+  container.addEventListener("click", async (event) => {
+    const button = event.target.closest('[data-action="cancel-public-registration"][data-registration-id]');
+
+    if (!button) {
+      return;
+    }
+
+    const registrationId = button.dataset.registrationId;
+    const sessionId = button.dataset.sessionId;
+
+    if (!registrationId || !sessionId) {
+      return;
+    }
+
+    const { session, error } = await getCurrentSupabaseSession();
+
+    if (error || !session?.user?.id) {
+      window.location.href = buildLoginRedirectHref(getCurrentRelativeUrl());
+      return;
+    }
+
+    if (!window.confirm("Annuler cette inscription ?")) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Désinscription...";
+    setSessionActionFeedback(container, sessionId, undefined, "");
+
+    const { error: updateError } = await supabase
+      .from("registrations")
+      .update({ status: "cancelled" })
+      .eq("id", registrationId)
+      .eq("user_id", session.user.id);
+
+    if (updateError) {
+      setSessionActionFeedback(
+        container,
+        sessionId,
+        "error",
+        updateError.message || "Impossible de traiter la désinscription.",
+      );
+      button.disabled = false;
+      button.textContent = "Se désinscrire";
+      return;
+    }
+
+    setSessionActionFeedback(
+      container,
+      sessionId,
+      "success",
+      "Inscription annulée. Mise à jour en cours.",
+    );
+    await refreshHandler();
+  });
 }
 
 async function hydrateEventsPage() {
@@ -4544,36 +4623,33 @@ async function hydrateHomePageData() {
   const eventsGrid = document.getElementById("home-events-grid");
   const featuredEventNode = document.getElementById("home-featured-event");
   const heroSessionsNode = document.getElementById("home-hero-sessions");
-  const modulesGrid = document.getElementById("home-modules-grid");
   const highlightsGrid = document.getElementById("home-highlights-grid");
-  const metricsGrid = document.getElementById("home-metrics-grid");
 
-  if (
-    !eventsGrid ||
-    !featuredEventNode ||
-    !heroSessionsNode ||
-    !modulesGrid ||
-    !highlightsGrid ||
-    !metricsGrid
-  ) {
+  if (!eventsGrid || !featuredEventNode || !heroSessionsNode || !highlightsGrid) {
     return;
   }
 
-  const [eventsResult, modulesResult, sessionsCountResult, eventsCountResult, sessionsResult] =
+  bindPublicRegistrationActions(eventsGrid, hydrateHomePageData);
+
+  const [
+    eventsResult,
+    modulesResult,
+    eventsCountResult,
+    sessionsResult,
+    registrationState,
+  ] =
     await Promise.all([
       fetchEvents(3),
       fetchPublicModules(),
-      fetchUpcomingSessionsCount(),
       fetchPublishedEventsCount(),
       fetchSessions(),
+      fetchCurrentUserActiveRegistrationIndex(),
     ]);
 
   console.log("home events data:", eventsResult.data);
   console.log("home events error:", eventsResult.error);
   console.log("home modules data:", modulesResult.data);
   console.log("home modules error:", modulesResult.error);
-  console.log("home sessions count:", sessionsCountResult.count);
-  console.log("home sessions count error:", sessionsCountResult.error);
   console.log("home events count:", eventsCountResult.count);
   console.log("home events count error:", eventsCountResult.error);
   console.log("home sessions data:", sessionsResult.data);
@@ -4581,7 +4657,11 @@ async function hydrateHomePageData() {
 
   const homeEvents = eventsResult.error ? [] : (eventsResult.data ?? []);
   const homeSessions = sessionsResult.error ? [] : (sessionsResult.data ?? []);
-  const homeAgendaMarkup = renderHomeAgendaCards(homeEvents, homeSessions);
+  const homeAgendaMarkup = renderHomeAgendaCards(
+    homeEvents,
+    homeSessions,
+    registrationState.registrationIndex,
+  );
 
   if (eventsResult.error && sessionsResult.error) {
     eventsGrid.innerHTML = renderEventsErrorState(
@@ -4605,20 +4685,10 @@ async function hydrateHomePageData() {
   const upcomingSessions = homeSessions.map(normalizeSession).slice(0, 2);
 
   heroSessionsNode.innerHTML = renderHomeHeroSessions(upcomingSessions);
-  modulesGrid.innerHTML = publicModules.length
-    ? publicModules.map(renderModuleCard).join("")
-    : renderHomeModulesEmptyState(
-        modulesResult.error
-          ? "Les modules ne peuvent pas être récupérés pour le moment."
-          : "Aucun module n’est encore publié.",
-      );
 
   const stats = {
     moduleCount: publicModules.length,
-    sessionCount:
-      sessionsCountResult.error || sessionsCountResult.count === null
-        ? 0
-        : sessionsCountResult.count,
+    sessionCount: homeSessions.length,
     eventCount:
       eventsCountResult.error || eventsCountResult.count === null
         ? eventsResult.data?.length ?? 0
@@ -4626,7 +4696,6 @@ async function hydrateHomePageData() {
   };
 
   highlightsGrid.innerHTML = renderHomeFeatureItems(stats);
-  metricsGrid.innerHTML = renderHomeMetrics(stats);
 }
 
 async function hydrateSessionsPage() {
@@ -4640,7 +4709,12 @@ async function hydrateSessionsPage() {
     return;
   }
 
-  const { data, error } = await fetchSessions();
+  bindPublicRegistrationActions(sessionsGrid, hydrateSessionsPage);
+
+  const [{ data, error }, registrationState] = await Promise.all([
+    fetchSessions(),
+    fetchCurrentUserActiveRegistrationIndex(),
+  ]);
 
   console.log("sessions data:", data);
   console.log("sessions error:", error);
@@ -4655,7 +4729,9 @@ async function hydrateSessionsPage() {
     return;
   }
 
-  sessionsGrid.innerHTML = data.map(renderSessionCard).join("");
+  sessionsGrid.innerHTML = data
+    .map((item) => renderSessionCard(item, registrationState.registrationIndex))
+    .join("");
 }
 
 async function hydrateAuthNavigation() {
@@ -4914,8 +4990,13 @@ async function hydrateModuleDetailSessions() {
     return;
   }
 
+  bindPublicRegistrationActions(sessionsList, hydrateModuleDetailSessions);
+
   const moduleTitle = sessionsList.dataset.moduleTitle ?? "";
-  const { data, error } = await fetchSessions();
+  const [{ data, error }, registrationState] = await Promise.all([
+    fetchSessions(),
+    fetchCurrentUserActiveRegistrationIndex(),
+  ]);
 
   console.log("module sessions data:", data);
   console.log("module sessions error:", error);
@@ -4933,7 +5014,9 @@ async function hydrateModuleDetailSessions() {
           (moduleName) =>
             String(moduleName).trim().toLowerCase() ===
             String(moduleTitle).trim().toLowerCase(),
-        ) && (session.seatsRemaining === null || session.seatsRemaining > 0),
+        ) &&
+        ((session.seatsRemaining === null || session.seatsRemaining > 0) ||
+          registrationState.registrationIndex.has(String(session.id))),
     );
 
   if (!matchingSessions.length) {
@@ -4941,7 +5024,9 @@ async function hydrateModuleDetailSessions() {
     return;
   }
 
-  sessionsList.innerHTML = matchingSessions.map(renderModuleSessionItem).join("");
+  sessionsList.innerHTML = matchingSessions
+    .map((session) => renderModuleSessionItem(session, registrationState.registrationIndex))
+    .join("");
 }
 
 async function hydrateSignupPage() {
