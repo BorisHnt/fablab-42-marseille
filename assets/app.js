@@ -889,6 +889,7 @@ function renderAdminPage(userEmail = "") {
         loadingText: "Chargement des inscriptions...",
       })}
     </div>
+    <div id="users-admin-modal-root"></div>
   `;
 }
 
@@ -1963,6 +1964,7 @@ function cacheAdminDom() {
       count: document.getElementById("users-admin-count"),
       message: document.getElementById("users-admin-message"),
       search: document.getElementById("users-admin-search"),
+      modalRoot: document.getElementById("users-admin-modal-root"),
     },
     modules: {
       form: document.getElementById("modules-admin-form"),
@@ -2073,6 +2075,31 @@ function bindUsersAdminControls() {
   });
 
   section.list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action][data-id]");
+
+    if (!button) {
+      return;
+    }
+
+    const recordId = button.dataset.id;
+
+    if (button.dataset.action === "select-user") {
+      adminState.selectedUserId = recordId;
+      renderUsersAdminSectionList();
+      setAdminMessage(section.message);
+      return;
+    }
+
+    if (button.dataset.action === "delete-user") {
+      await deleteAdminUserRecord(recordId, button);
+    }
+  });
+
+  if (!section.modalRoot) {
+    return;
+  }
+
+  section.modalRoot.addEventListener("click", async (event) => {
     const closeTrigger = event.target.closest('[data-action="close-user-modal"]');
 
     if (closeTrigger) {
@@ -2094,31 +2121,22 @@ function bindUsersAdminControls() {
       return;
     }
 
-    const recordId = button.dataset.id;
-
-    if (button.dataset.action === "select-user") {
-      adminState.selectedUserId = recordId;
-      renderUsersAdminSectionList();
-      setAdminMessage(section.message);
-      return;
-    }
-
     if (button.dataset.action === "delete-user") {
-      await deleteAdminUserRecord(recordId, button);
+      await deleteAdminUserRecord(button.dataset.id, button);
     }
   });
 
-  section.list.addEventListener("change", (event) => {
+  section.modalRoot.addEventListener("change", (event) => {
     const checkbox = event.target.closest('input[data-module-id]');
 
     if (!checkbox) {
       return;
     }
 
-    toggleAdminUserModuleFields(section.list, checkbox);
+    toggleAdminUserModuleFields(section.modalRoot, checkbox);
   });
 
-  section.list.addEventListener("submit", async (event) => {
+  section.modalRoot.addEventListener("submit", async (event) => {
     const formNode = event.target.closest("#users-admin-module-form");
 
     if (!formNode) {
@@ -2492,6 +2510,7 @@ async function refreshUsersAdminSection() {
 
   section.count.textContent = "Chargement...";
   section.list.innerHTML = renderAdminListLoadingState("Récupération des utilisateurs...");
+  renderUsersAdminModal();
 
   const { data, error } = await supabase
     .from("admin_users_overview")
@@ -2506,6 +2525,7 @@ async function refreshUsersAdminSection() {
     section.list.innerHTML = renderAdminErrorState(
       "Impossible de charger les utilisateurs pour le moment.",
     );
+    renderUsersAdminModal();
     syncModuleCompletionFormOptions();
     return;
   }
@@ -2701,6 +2721,7 @@ async function refreshModuleCompletionsAdminSection() {
     section.list.innerHTML = renderAdminErrorState(
       "Impossible de charger les validations de modules pour le moment.",
     );
+    renderUsersAdminModal();
     return;
   }
 
@@ -2734,6 +2755,17 @@ function renderUsersAdminSectionList() {
     "utilisateurs",
   );
   section.list.innerHTML = renderUsersAdminList(filteredUsers, searchValue);
+  renderUsersAdminModal();
+}
+
+function renderUsersAdminModal() {
+  const modalRoot = adminDom?.users?.modalRoot;
+
+  if (!modalRoot) {
+    return;
+  }
+
+  modalRoot.innerHTML = renderSelectedUserAdminPanel();
 }
 
 function toggleAdminUserModuleFields(container, checkbox) {
@@ -2887,11 +2919,20 @@ async function deleteAdminUserRecord(recordId, button) {
   const section = adminDom?.users;
   const record = findAdminRecordById(adminState.users, recordId);
 
-  if (
-    !section?.message ||
-    !record ||
-    !window.confirm(`Supprimer le compte ${record.displayLabel} ?`)
-  ) {
+  if (!section?.message || !record) {
+    return;
+  }
+
+  if (record.role === "admin") {
+    setAdminMessage(
+      section.message,
+      "error",
+      "La suppression d’un compte admin ne peut pas être lancée depuis cette interface publique. Elle doit passer par une opération sécurisée côté backend.",
+    );
+    return;
+  }
+
+  if (!window.confirm(`Supprimer le compte ${record.displayLabel} ?`)) {
     return;
   }
 
@@ -3102,9 +3143,7 @@ function renderUsersAdminList(items, searchValue = "") {
                       <button class="button button-ghost button-small" data-action="select-user" data-id="${escapeHtml(item.id)}" type="button">
                         Options
                       </button>
-                      <button class="button button-danger button-small" data-action="delete-user" data-id="${escapeHtml(item.id)}" type="button">
-                        Supprimer
-                      </button>
+                      ${renderAdminUserDeleteButton(item)}
                     </div>
                   </article>
                 `,
@@ -3118,7 +3157,6 @@ function renderUsersAdminList(items, searchValue = "") {
               : "Aucun utilisateur n’est enregistré pour le moment.",
           )
     }
-    ${renderSelectedUserAdminPanel()}
   `;
 }
 
@@ -3158,9 +3196,7 @@ function renderSelectedUserAdminPanel() {
             </div>
           </div>
           <div class="admin-row-actions">
-            <button class="button button-danger button-small" data-action="delete-user" data-id="${escapeHtml(selectedUser.id)}" type="button">
-              Supprimer l’utilisateur
-            </button>
+            ${renderAdminUserDeleteButton(selectedUser, "Supprimer l’utilisateur")}
             <button class="button button-ghost button-small" data-action="close-user-modal" type="button">
               Fermer
             </button>
@@ -3208,6 +3244,22 @@ function renderSelectedUserAdminPanel() {
         </form>
       </article>
     </div>
+  `;
+}
+
+function renderAdminUserDeleteButton(userRecord, label = "Supprimer") {
+  if (!userRecord) {
+    return "";
+  }
+
+  if (userRecord.role === "admin") {
+    return "";
+  }
+
+  return `
+    <button class="button button-danger button-small" data-action="delete-user" data-id="${escapeHtml(userRecord.id)}" type="button">
+      ${escapeHtml(label)}
+    </button>
   `;
 }
 
