@@ -2073,6 +2073,21 @@ function bindUsersAdminControls() {
   });
 
   section.list.addEventListener("click", async (event) => {
+    const closeTrigger = event.target.closest('[data-action="close-user-modal"]');
+
+    if (closeTrigger) {
+      adminState.selectedUserId = "";
+      renderUsersAdminSectionList();
+      return;
+    }
+
+    const backdrop = event.target.closest(".admin-modal-backdrop");
+    if (backdrop && event.target === backdrop) {
+      adminState.selectedUserId = "";
+      renderUsersAdminSectionList();
+      return;
+    }
+
     const button = event.target.closest("[data-action][data-id]");
 
     if (!button) {
@@ -2728,7 +2743,7 @@ function toggleAdminUserModuleFields(container, checkbox) {
     return;
   }
 
-  const cardNode = checkbox.closest(".admin-user-module-card");
+  const cardNode = checkbox.closest(".admin-user-module-row");
   const dateInput = container.querySelector(`[data-module-date="${CSS.escape(String(moduleId))}"]`);
   const statusSelect = container.querySelector(
     `[data-module-status="${CSS.escape(String(moduleId))}"]`,
@@ -3085,7 +3100,7 @@ function renderUsersAdminList(items, searchValue = "") {
                     </div>
                     <div class="admin-row-actions">
                       <button class="button button-ghost button-small" data-action="select-user" data-id="${escapeHtml(item.id)}" type="button">
-                        ${String(item.id) === String(adminState.selectedUserId) ? "Ouvert" : "Gérer les modules"}
+                        Options
                       </button>
                       <button class="button button-danger button-small" data-action="delete-user" data-id="${escapeHtml(item.id)}" type="button">
                         Supprimer
@@ -3111,16 +3126,7 @@ function renderSelectedUserAdminPanel() {
   const selectedUser = findAdminRecordById(adminState.users, adminState.selectedUserId);
 
   if (!selectedUser) {
-    return `
-      <article class="admin-panel admin-user-detail-panel">
-        <div class="admin-panel-head">
-          <h3>Modules validés par utilisateur</h3>
-        </div>
-        <p class="admin-helper-text">
-          Sélectionnez un utilisateur pour cocher ses modules validés, renseigner les dates et enregistrer les changements.
-        </p>
-      </article>
-    `;
+    return "";
   }
 
   const userCompletions = adminState.moduleCompletions.filter(
@@ -3131,54 +3137,77 @@ function renderSelectedUserAdminPanel() {
   );
 
   return `
-    <article class="admin-panel admin-user-detail-panel">
-      <div class="admin-panel-head admin-panel-head-start">
-        <div class="admin-completion-copy">
-          <div class="card-topline">
-            <span class="eyebrow eyebrow-tight">Utilisateur sélectionné</span>
-            <span class="subtle-badge">${escapeHtml(selectedUser.roleLabel)}</span>
+    <div class="admin-modal-backdrop" data-action="close-user-modal">
+      <article class="admin-panel admin-user-modal" role="dialog" aria-modal="true" aria-labelledby="admin-user-modal-title">
+        <div class="admin-panel-head admin-panel-head-start">
+          <div class="admin-completion-copy">
+            <div class="card-topline">
+              <span class="eyebrow eyebrow-tight">Utilisateur</span>
+              <span class="subtle-badge">${escapeHtml(selectedUser.roleLabel)}</span>
+            </div>
+            <h3 id="admin-user-modal-title">${escapeHtml(selectedUser.displayLabel)}</h3>
+            <p>${escapeHtml(selectedUser.email)}</p>
+            <div class="admin-badge-list">
+              ${
+                selectedUser.login42
+                  ? `<span class="tag">login42 · ${escapeHtml(selectedUser.login42)}</span>`
+                  : `<span class="tag">Sans login 42</span>`
+              }
+              <span class="subtle-badge">Créé le ${escapeHtml(selectedUser.createdDateLabel)}</span>
+              <span class="subtle-badge">${formatAdminCount(userCompletions.length, "validation", "validations")}</span>
+            </div>
           </div>
-          <h3>${escapeHtml(selectedUser.displayLabel)}</h3>
-          <p>${escapeHtml(selectedUser.email)}</p>
-          <div class="admin-badge-list">
-            ${
-              selectedUser.login42
-                ? `<span class="tag">login42 · ${escapeHtml(selectedUser.login42)}</span>`
-                : `<span class="tag">Sans login 42</span>`
-            }
-            <span class="subtle-badge">Créé le ${escapeHtml(selectedUser.createdDateLabel)}</span>
+          <div class="admin-row-actions">
+            <button class="button button-danger button-small" data-action="delete-user" data-id="${escapeHtml(selectedUser.id)}" type="button">
+              Supprimer l’utilisateur
+            </button>
+            <button class="button button-ghost button-small" data-action="close-user-modal" type="button">
+              Fermer
+            </button>
           </div>
         </div>
-        <div class="admin-row-actions">
-          <button class="button button-danger button-small" data-action="delete-user" data-id="${escapeHtml(selectedUser.id)}" type="button">
-            Supprimer l’utilisateur
-          </button>
-        </div>
-      </div>
 
-      <form class="admin-user-module-form" id="users-admin-module-form" data-user-id="${escapeHtml(selectedUser.id)}">
-        <div class="admin-panel-head">
-          <h3>Modules validés</h3>
-          <span class="subtle-badge">${formatAdminCount(userCompletions.length, "validation", "validations")}</span>
-        </div>
-        <div class="admin-user-module-grid">
+        <form class="admin-user-module-form" id="users-admin-module-form" data-user-id="${escapeHtml(selectedUser.id)}">
+          <div class="admin-panel-head">
+            <h3>Validation des modules</h3>
+            <span class="subtle-badge">Corriger présence, absence ou validation</span>
+          </div>
           ${
             adminState.modules.length
-              ? adminState.modules
-                  .map((moduleItem) =>
-                    renderAdminUserModuleEditor(moduleItem, completionsByModuleId.get(String(moduleItem.id))),
-                  )
-                  .join("")
+              ? `
+                <div class="table-card admin-user-module-table-card">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Module</th>
+                        <th>Passé</th>
+                        <th>Date de validation</th>
+                        <th>Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${adminState.modules
+                        .map((moduleItem) =>
+                          renderAdminUserModuleEditor(
+                            moduleItem,
+                            completionsByModuleId.get(String(moduleItem.id)),
+                          ),
+                        )
+                        .join("")}
+                    </tbody>
+                  </table>
+                </div>
+              `
               : renderAdminEmptyState("Les modules doivent être chargés avant de gérer les validations.")
           }
-        </div>
-        <div class="admin-form-actions">
-          <button class="button button-primary" type="submit">
-            Enregistrer les validations
-          </button>
-        </div>
-      </form>
-    </article>
+          <div class="admin-form-actions">
+            <button class="button button-primary" type="submit">
+              Enregistrer les validations
+            </button>
+          </div>
+        </form>
+      </article>
+    </div>
   `;
 }
 
@@ -3189,8 +3218,21 @@ function renderAdminUserModuleEditor(moduleItem, completionRecord) {
   const statusValue = completionRecord?.status ?? "completed";
 
   return `
-    <article class="admin-user-module-card ${isChecked ? "is-checked" : ""}">
-      <div class="admin-user-module-head">
+    <tr class="admin-user-module-row ${isChecked ? "is-checked" : ""}">
+      <td>
+        <strong>${escapeHtml(moduleItem.title)}</strong>
+        ${
+          moduleItem.shortDescription
+            ? `<div class="admin-cell-meta">${escapeHtml(moduleItem.shortDescription)}</div>`
+            : ""
+        }
+        ${
+          completionRecord?.validatedByLabel
+            ? `<div class="admin-cell-meta">Dernière validation : ${escapeHtml(completionRecord.validatedByLabel)}</div>`
+            : ""
+        }
+      </td>
+      <td>
         <label class="admin-user-module-toggle">
           <input
             type="checkbox"
@@ -3199,49 +3241,28 @@ function renderAdminUserModuleEditor(moduleItem, completionRecord) {
             data-module-id="${escapeHtml(moduleId)}"
             ${isChecked ? "checked" : ""}
           />
-          <span>
-            <strong>${escapeHtml(moduleItem.title)}</strong>
-            ${
-              moduleItem.shortDescription
-                ? `<small>${escapeHtml(moduleItem.shortDescription)}</small>`
-                : `<small>Aucune description courte.</small>`
-            }
-          </span>
+          <span>${isChecked ? "Oui" : "Non"}</span>
         </label>
-        ${
-          moduleItem.duration
-            ? `<span class="subtle-badge">${escapeHtml(moduleItem.duration)}</span>`
-            : ""
-        }
-      </div>
-      <div class="admin-user-module-fields">
-        <label for="user-module-date-${escapeHtml(moduleId)}">
-          Date de validation
-          <input
-            id="user-module-date-${escapeHtml(moduleId)}"
-            type="date"
-            data-module-date="${escapeHtml(moduleId)}"
-            value="${escapeHtml(dateValue)}"
-            ${isChecked ? "" : "disabled"}
-          />
-        </label>
-        <label for="user-module-status-${escapeHtml(moduleId)}">
-          Statut
-          <select
-            id="user-module-status-${escapeHtml(moduleId)}"
-            data-module-status="${escapeHtml(moduleId)}"
-            ${isChecked ? "" : "disabled"}
-          >
-            ${renderModuleCompletionStatusOptions(statusValue)}
-          </select>
-        </label>
-      </div>
-      ${
-        completionRecord?.validatedByLabel
-          ? `<p class="admin-cell-meta">Dernière validation : ${escapeHtml(completionRecord.validatedByLabel)}</p>`
-          : ""
-      }
-    </article>
+      </td>
+      <td>
+        <input
+          id="user-module-date-${escapeHtml(moduleId)}"
+          type="date"
+          data-module-date="${escapeHtml(moduleId)}"
+          value="${escapeHtml(dateValue)}"
+          ${isChecked ? "" : "disabled"}
+        />
+      </td>
+      <td>
+        <select
+          id="user-module-status-${escapeHtml(moduleId)}"
+          data-module-status="${escapeHtml(moduleId)}"
+          ${isChecked ? "" : "disabled"}
+        >
+          ${renderModuleCompletionStatusOptions(statusValue)}
+        </select>
+      </td>
+    </tr>
   `;
 }
 
