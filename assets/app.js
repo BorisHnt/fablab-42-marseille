@@ -2100,7 +2100,7 @@ function bindUsersAdminControls() {
   }
 
   section.modalRoot.addEventListener("click", async (event) => {
-    const closeTrigger = event.target.closest('[data-action="close-user-modal"]');
+    const closeTrigger = event.target.closest('button[data-action="close-user-modal"]');
 
     if (closeTrigger) {
       adminState.selectedUserId = "";
