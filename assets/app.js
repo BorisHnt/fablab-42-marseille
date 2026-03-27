@@ -27,6 +27,7 @@ const adminState = {
   neededEquipment: [],
   events: [],
   users: [],
+  selectedUserId: "",
   modules: [],
   sessionModules: [],
   sessions: [],
@@ -2063,12 +2064,54 @@ async function initializeAdminDashboard() {
 function bindUsersAdminControls() {
   const section = adminDom?.users;
 
-  if (!section?.search) {
+  if (!section?.list) {
     return;
   }
 
-  section.search.addEventListener("input", () => {
+  section.search?.addEventListener("input", () => {
     renderUsersAdminSectionList();
+  });
+
+  section.list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action][data-id]");
+
+    if (!button) {
+      return;
+    }
+
+    const recordId = button.dataset.id;
+
+    if (button.dataset.action === "select-user") {
+      adminState.selectedUserId = recordId;
+      renderUsersAdminSectionList();
+      setAdminMessage(section.message);
+      return;
+    }
+
+    if (button.dataset.action === "delete-user") {
+      await deleteAdminUserRecord(recordId, button);
+    }
+  });
+
+  section.list.addEventListener("change", (event) => {
+    const checkbox = event.target.closest('input[data-module-id]');
+
+    if (!checkbox) {
+      return;
+    }
+
+    toggleAdminUserModuleFields(section.list, checkbox);
+  });
+
+  section.list.addEventListener("submit", async (event) => {
+    const formNode = event.target.closest("#users-admin-module-form");
+
+    if (!formNode) {
+      return;
+    }
+
+    event.preventDefault();
+    await handleUsersAdminModulesFormSubmit(formNode);
   });
 }
 
@@ -2443,6 +2486,7 @@ async function refreshUsersAdminSection() {
 
   if (error) {
     adminState.users = [];
+    adminState.selectedUserId = "";
     section.count.textContent = "Erreur";
     section.list.innerHTML = renderAdminErrorState(
       "Impossible de charger les utilisateurs pour le moment.",
@@ -2452,6 +2496,12 @@ async function refreshUsersAdminSection() {
   }
 
   adminState.users = (data ?? []).map(normalizeAdminUserRecord);
+  if (
+    adminState.selectedUserId &&
+    !adminState.users.some((item) => String(item.id) === String(adminState.selectedUserId))
+  ) {
+    adminState.selectedUserId = "";
+  }
   section.count.textContent = formatAdminCount(
     adminState.users.length,
     "utilisateur",
@@ -2646,6 +2696,9 @@ async function refreshModuleCompletionsAdminSection() {
     "validations",
   );
   section.list.innerHTML = renderModuleCompletionsAdminList(adminState.moduleCompletions);
+  if (adminDom?.users?.list) {
+    renderUsersAdminSectionList();
+  }
 }
 
 function renderUsersAdminSectionList() {
@@ -2666,6 +2719,206 @@ function renderUsersAdminSectionList() {
     "utilisateurs",
   );
   section.list.innerHTML = renderUsersAdminList(filteredUsers, searchValue);
+}
+
+function toggleAdminUserModuleFields(container, checkbox) {
+  const moduleId = checkbox?.dataset.moduleId;
+
+  if (!container || !moduleId) {
+    return;
+  }
+
+  const cardNode = checkbox.closest(".admin-user-module-card");
+  const dateInput = container.querySelector(`[data-module-date="${CSS.escape(String(moduleId))}"]`);
+  const statusSelect = container.querySelector(
+    `[data-module-status="${CSS.escape(String(moduleId))}"]`,
+  );
+
+  if (dateInput) {
+    dateInput.disabled = !checkbox.checked;
+    if (checkbox.checked && !dateInput.value) {
+      dateInput.value = new Date().toISOString().slice(0, 10);
+    }
+  }
+
+  if (statusSelect) {
+    statusSelect.disabled = !checkbox.checked;
+  }
+
+  cardNode?.classList.toggle("is-checked", checkbox.checked);
+}
+
+async function handleUsersAdminModulesFormSubmit(formNode) {
+  const section = adminDom?.users;
+
+  if (!section?.message || !formNode || !adminSessionUser?.id) {
+    return;
+  }
+
+  const userId = formNode.dataset.userId;
+  const selectedUser = findAdminRecordById(adminState.users, userId);
+
+  if (!userId || !selectedUser) {
+    setAdminMessage(section.message, "error", "Utilisateur introuvable.");
+    return;
+  }
+
+  const toggles = Array.from(formNode.querySelectorAll('input[data-module-id]'));
+  const existingCompletions = adminState.moduleCompletions.filter(
+    (item) => String(item.userId) === String(userId),
+  );
+  const completionMap = new Map(
+    existingCompletions.map((item) => [String(item.moduleId), item]),
+  );
+
+  const operations = [];
+
+  for (const checkbox of toggles) {
+    const moduleId = checkbox.dataset.moduleId;
+    const dateInput = formNode.querySelector(`[data-module-date="${CSS.escape(String(moduleId))}"]`);
+    const statusSelect = formNode.querySelector(
+      `[data-module-status="${CSS.escape(String(moduleId))}"]`,
+    );
+    const existingRecord = completionMap.get(String(moduleId));
+
+    if (checkbox.checked) {
+      const completionDate = dateInput?.value ?? "";
+      const status = statusSelect?.value ?? "completed";
+
+      if (!completionDate) {
+        setAdminMessage(
+          section.message,
+          "error",
+          `Renseignez une date pour ${findAdminRecordById(adminState.modules, moduleId)?.title ?? "ce module"}.`,
+        );
+        return;
+      }
+
+      const payload = {
+        user_id: userId,
+        module_id: moduleId,
+        validated_by: adminSessionUser.id,
+        completion_date: completionDate,
+        status,
+      };
+
+      if (existingRecord) {
+        operations.push(
+          supabase
+            .from("user_module_completions")
+            .update(payload)
+            .eq("id", existingRecord.id),
+        );
+      } else {
+        operations.push(
+          supabase.from("user_module_completions").insert([
+            {
+              ...payload,
+              session_id: null,
+              notes: null,
+            },
+          ]),
+        );
+      }
+    } else if (existingRecord) {
+      operations.push(
+        supabase
+          .from("user_module_completions")
+          .delete()
+          .eq("id", existingRecord.id),
+      );
+    }
+  }
+
+  const submitButton = formNode.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "Enregistrement...";
+  }
+  setAdminMessage(section.message);
+
+  const results = await Promise.all(operations);
+  const failedResult = results.find((result) => result?.error);
+
+  if (failedResult?.error) {
+    setAdminMessage(
+      section.message,
+      "error",
+      failedResult.error.message || "Impossible d’enregistrer ces validations.",
+    );
+
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "Enregistrer les validations";
+    }
+    return;
+  }
+
+  setAdminMessage(
+    section.message,
+    "success",
+    `Validations mises à jour pour ${selectedUser.displayLabel}.`,
+  );
+
+  if (submitButton) {
+    submitButton.disabled = false;
+    submitButton.textContent = "Enregistrer les validations";
+  }
+
+  await refreshModuleCompletionsAdminSection();
+}
+
+async function deleteAdminUserRecord(recordId, button) {
+  const section = adminDom?.users;
+  const record = findAdminRecordById(adminState.users, recordId);
+
+  if (
+    !section?.message ||
+    !record ||
+    !window.confirm(`Supprimer le compte ${record.displayLabel} ?`)
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  setAdminMessage(section.message);
+
+  const { error } = await supabase.functions.invoke("admin-delete-user", {
+    body: {
+      user_id: record.id,
+    },
+  });
+
+  if (error) {
+    setAdminMessage(
+      section.message,
+      "error",
+      buildAdminUserDeletionError(error),
+    );
+    button.disabled = false;
+    return;
+  }
+
+  if (String(adminState.selectedUserId) === String(recordId)) {
+    adminState.selectedUserId = "";
+  }
+
+  setAdminMessage(section.message, "success", "Suppression du compte lancée.");
+  await Promise.all([
+    refreshUsersAdminSection(),
+    refreshModuleCompletionsAdminSection(),
+    refreshRegistrationsAdminSection(),
+  ]);
+}
+
+function buildAdminUserDeletionError(error) {
+  const message = String(error?.message ?? "").trim();
+
+  if (!message || /Functions?HttpError|404|not found/i.test(message)) {
+    return "La suppression complète du compte Auth nécessite une Edge Function sécurisée `admin-delete-user` côté backend.";
+  }
+
+  return `${message} La suppression complète du compte Auth nécessite une Edge Function sécurisée si elle n’est pas déjà branchée.`;
 }
 
 function syncModuleCompletionFormOptions() {
@@ -2805,39 +3058,190 @@ function renderEventsAdminList(items) {
 }
 
 function renderUsersAdminList(items, searchValue = "") {
-  if (!items.length) {
-    return renderAdminEmptyState(
-      searchValue
-        ? "Aucun utilisateur ne correspond à cette recherche."
-        : "Aucun utilisateur n’est enregistré pour le moment.",
-    );
+  return `
+    ${
+      items.length
+        ? `
+          <div class="admin-user-grid">
+            ${items
+              .map(
+                (item) => `
+                  <article class="info-card admin-user-card animate-rise ${
+                    String(item.id) === String(adminState.selectedUserId) ? "is-selected" : ""
+                  }">
+                    <div class="card-topline">
+                      <span class="eyebrow eyebrow-tight">Utilisateur</span>
+                      <span class="subtle-badge">${escapeHtml(item.roleLabel)}</span>
+                    </div>
+                    <h3>${escapeHtml(item.displayLabel)}</h3>
+                    <p>${escapeHtml(item.email)}</p>
+                    <div class="admin-badge-list">
+                      ${
+                        item.login42
+                          ? `<span class="tag">login42 · ${escapeHtml(item.login42)}</span>`
+                          : `<span class="tag">Sans login 42</span>`
+                      }
+                      <span class="subtle-badge">Créé le ${escapeHtml(item.createdDateLabel)}</span>
+                    </div>
+                    <div class="admin-row-actions">
+                      <button class="button button-ghost button-small" data-action="select-user" data-id="${escapeHtml(item.id)}" type="button">
+                        ${String(item.id) === String(adminState.selectedUserId) ? "Ouvert" : "Gérer les modules"}
+                      </button>
+                      <button class="button button-danger button-small" data-action="delete-user" data-id="${escapeHtml(item.id)}" type="button">
+                        Supprimer
+                      </button>
+                    </div>
+                  </article>
+                `,
+              )
+              .join("")}
+          </div>
+        `
+        : renderAdminEmptyState(
+            searchValue
+              ? "Aucun utilisateur ne correspond à cette recherche."
+              : "Aucun utilisateur n’est enregistré pour le moment.",
+          )
+    }
+    ${renderSelectedUserAdminPanel()}
+  `;
+}
+
+function renderSelectedUserAdminPanel() {
+  const selectedUser = findAdminRecordById(adminState.users, adminState.selectedUserId);
+
+  if (!selectedUser) {
+    return `
+      <article class="admin-panel admin-user-detail-panel">
+        <div class="admin-panel-head">
+          <h3>Modules validés par utilisateur</h3>
+        </div>
+        <p class="admin-helper-text">
+          Sélectionnez un utilisateur pour cocher ses modules validés, renseigner les dates et enregistrer les changements.
+        </p>
+      </article>
+    `;
   }
 
+  const userCompletions = adminState.moduleCompletions.filter(
+    (item) => String(item.userId) === String(selectedUser.id),
+  );
+  const completionsByModuleId = new Map(
+    userCompletions.map((item) => [String(item.moduleId), item]),
+  );
+
   return `
-    <div class="admin-user-grid">
-      ${items
-        .map(
-          (item) => `
-            <article class="info-card admin-user-card animate-rise">
-              <div class="card-topline">
-                <span class="eyebrow eyebrow-tight">Utilisateur</span>
-                <span class="subtle-badge">${escapeHtml(item.roleLabel)}</span>
-              </div>
-              <h3>${escapeHtml(item.displayLabel)}</h3>
-              <p>${escapeHtml(item.email)}</p>
-              <div class="admin-badge-list">
-                ${
-                  item.login42
-                    ? `<span class="tag">login42 · ${escapeHtml(item.login42)}</span>`
-                    : `<span class="tag">Sans login 42</span>`
-                }
-                <span class="subtle-badge">Créé le ${escapeHtml(item.createdDateLabel)}</span>
-              </div>
-            </article>
-          `,
-        )
-        .join("")}
-    </div>
+    <article class="admin-panel admin-user-detail-panel">
+      <div class="admin-panel-head admin-panel-head-start">
+        <div class="admin-completion-copy">
+          <div class="card-topline">
+            <span class="eyebrow eyebrow-tight">Utilisateur sélectionné</span>
+            <span class="subtle-badge">${escapeHtml(selectedUser.roleLabel)}</span>
+          </div>
+          <h3>${escapeHtml(selectedUser.displayLabel)}</h3>
+          <p>${escapeHtml(selectedUser.email)}</p>
+          <div class="admin-badge-list">
+            ${
+              selectedUser.login42
+                ? `<span class="tag">login42 · ${escapeHtml(selectedUser.login42)}</span>`
+                : `<span class="tag">Sans login 42</span>`
+            }
+            <span class="subtle-badge">Créé le ${escapeHtml(selectedUser.createdDateLabel)}</span>
+          </div>
+        </div>
+        <div class="admin-row-actions">
+          <button class="button button-danger button-small" data-action="delete-user" data-id="${escapeHtml(selectedUser.id)}" type="button">
+            Supprimer l’utilisateur
+          </button>
+        </div>
+      </div>
+
+      <form class="admin-user-module-form" id="users-admin-module-form" data-user-id="${escapeHtml(selectedUser.id)}">
+        <div class="admin-panel-head">
+          <h3>Modules validés</h3>
+          <span class="subtle-badge">${formatAdminCount(userCompletions.length, "validation", "validations")}</span>
+        </div>
+        <div class="admin-user-module-grid">
+          ${
+            adminState.modules.length
+              ? adminState.modules
+                  .map((moduleItem) =>
+                    renderAdminUserModuleEditor(moduleItem, completionsByModuleId.get(String(moduleItem.id))),
+                  )
+                  .join("")
+              : renderAdminEmptyState("Les modules doivent être chargés avant de gérer les validations.")
+          }
+        </div>
+        <div class="admin-form-actions">
+          <button class="button button-primary" type="submit">
+            Enregistrer les validations
+          </button>
+        </div>
+      </form>
+    </article>
+  `;
+}
+
+function renderAdminUserModuleEditor(moduleItem, completionRecord) {
+  const isChecked = Boolean(completionRecord);
+  const moduleId = String(moduleItem.id);
+  const dateValue = completionRecord?.completionDate ?? "";
+  const statusValue = completionRecord?.status ?? "completed";
+
+  return `
+    <article class="admin-user-module-card ${isChecked ? "is-checked" : ""}">
+      <div class="admin-user-module-head">
+        <label class="admin-user-module-toggle">
+          <input
+            type="checkbox"
+            name="user_module_toggle"
+            value="${escapeHtml(moduleId)}"
+            data-module-id="${escapeHtml(moduleId)}"
+            ${isChecked ? "checked" : ""}
+          />
+          <span>
+            <strong>${escapeHtml(moduleItem.title)}</strong>
+            ${
+              moduleItem.shortDescription
+                ? `<small>${escapeHtml(moduleItem.shortDescription)}</small>`
+                : `<small>Aucune description courte.</small>`
+            }
+          </span>
+        </label>
+        ${
+          moduleItem.duration
+            ? `<span class="subtle-badge">${escapeHtml(moduleItem.duration)}</span>`
+            : ""
+        }
+      </div>
+      <div class="admin-user-module-fields">
+        <label for="user-module-date-${escapeHtml(moduleId)}">
+          Date de validation
+          <input
+            id="user-module-date-${escapeHtml(moduleId)}"
+            type="date"
+            data-module-date="${escapeHtml(moduleId)}"
+            value="${escapeHtml(dateValue)}"
+            ${isChecked ? "" : "disabled"}
+          />
+        </label>
+        <label for="user-module-status-${escapeHtml(moduleId)}">
+          Statut
+          <select
+            id="user-module-status-${escapeHtml(moduleId)}"
+            data-module-status="${escapeHtml(moduleId)}"
+            ${isChecked ? "" : "disabled"}
+          >
+            ${renderModuleCompletionStatusOptions(statusValue)}
+          </select>
+        </label>
+      </div>
+      ${
+        completionRecord?.validatedByLabel
+          ? `<p class="admin-cell-meta">Dernière validation : ${escapeHtml(completionRecord.validatedByLabel)}</p>`
+          : ""
+      }
+    </article>
   `;
 }
 
