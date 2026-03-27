@@ -91,13 +91,14 @@ const moduleCompletionStatusOptions = [
   "failed",
 ];
 
-const navItems = [
+const publicNavItems = [
   { key: "home", href: routeMap.home, label: "Accueil" },
   { key: "modules", href: routeMap.modules, label: "Modules" },
   { key: "sessions", href: routeMap.sessions, label: "Sessions" },
   { key: "events", href: routeMap.events, label: "Événements" },
-  { key: "admin", href: routeMap.admin, label: "Admin" },
 ];
+
+const adminNavItem = { key: "admin", href: routeMap.admin, label: "Admin" };
 
 const pageParent = {
   "module-detail": "modules",
@@ -140,16 +141,8 @@ function renderShell() {
       </button>
 
       <div class="nav-panel">
-        <div class="nav-links">
-          ${navItems
-            .map(
-              (item) => `
-                <a class="nav-link ${item.key === activeKey ? "active" : ""}" href="${item.href}">
-                  ${item.label}
-                </a>
-              `,
-            )
-            .join("")}
+        <div class="nav-links" id="site-nav-links">
+          ${renderNavLinks(activeKey)}
         </div>
         <div class="nav-actions">
           <a class="button button-secondary nav-cta" href="${routeMap.sessions}">Voir les sessions</a>
@@ -168,13 +161,34 @@ function renderShell() {
         Un atelier pour apprendre, fabriquer et partager des projets concrets.
       </p>
     </div>
-    <div class="footer-links">
-      <span>Modules</span>
-      <span>Sessions</span>
-      <span>Événements</span>
-      <span>Admin</span>
+    <div class="footer-links" id="site-footer-links">
+      ${renderFooterLinks()}
     </div>
   `;
+}
+
+function renderNavLinks(activeKey, isAdmin = false) {
+  const items = isAdmin ? [...publicNavItems, adminNavItem] : publicNavItems;
+
+  return items
+    .map(
+      (item) => `
+        <a class="nav-link ${item.key === activeKey ? "active" : ""}" href="${item.href}">
+          ${item.label}
+        </a>
+      `,
+    )
+    .join("");
+}
+
+function renderFooterLinks(isAdmin = false) {
+  const labels = ["Modules", "Sessions", "Événements"];
+
+  if (isAdmin) {
+    labels.push("Admin");
+  }
+
+  return labels.map((label) => `<span>${label}</span>`).join("");
 }
 
 function renderPage() {
@@ -586,8 +600,8 @@ function renderLoginPage() {
         <div class="section-card registration-card animate-rise">
           ${sectionHeading(
             "Compte",
-            "Connexion utilisateur",
-            "Connectez-vous pour réserver une session, consulter vos inscriptions et accéder à votre espace personnel.",
+            "Connexion",
+            "Connectez-vous avec un portail unique. Les comptes admin verront automatiquement l’accès à l’administration une fois la session ouverte.",
           )}
 
           <form class="signup-form" id="user-login-form">
@@ -609,7 +623,7 @@ function renderLoginPage() {
               Se connecter
             </button>
             <p id="user-login-message" class="admin-login-message" aria-live="polite">
-              Utilisez les identifiants de votre espace utilisateur.
+              Utilisez les identifiants de votre compte. Les droits seront détectés automatiquement après connexion.
             </p>
           </form>
         </div>
@@ -625,10 +639,10 @@ function renderLoginPage() {
             <a class="button button-ghost" href="${signupHref}">Créer un compte</a>
           </article>
           <article class="info-card animate-rise">
-            <span class="subtle-badge">Inscription aux sessions</span>
+            <span class="subtle-badge">Portail unique</span>
             <p>
-              Si vous venez depuis une session précise, votre redirection sera conservée après
-              connexion pour ne pas casser le parcours.
+              Si vous venez depuis une session précise ou depuis l’administration, la redirection
+              utile sera conservée après connexion.
             </p>
           </article>
         </aside>
@@ -1308,7 +1322,7 @@ function renderAdminErrorPage() {
         "La session administrateur n’a pas pu être vérifiée pour le moment.",
       )}
       <div class="section-action">
-        <a class="button button-primary" href="${routeMap.adminLogin}">Retour à la connexion</a>
+        <a class="button button-primary" href="${buildLoginRedirectHref(routeMap.admin)}">Retour à la connexion</a>
       </div>
     </section>
   `;
@@ -1337,48 +1351,27 @@ function renderAdminLoginPage() {
         <div class="section-card registration-card animate-rise">
           ${sectionHeading(
             "Admin",
-            "Connexion admin",
-            "Accès réservé à l’administration du fablab. Le branchement d’authentification sera ajouté ensuite.",
+            "Redirection vers la connexion",
+            "Cette ancienne entrée admin redirige maintenant vers le portail de connexion unique.",
           )}
-
-          <form class="signup-form" id="admin-login-form">
-            <label for="admin-email">
-              Email
-              <input id="admin-email" name="email" type="email" autocomplete="email" required />
-            </label>
-            <label for="admin-password">
-              Mot de passe
-              <input
-                id="admin-password"
-                name="password"
-                type="password"
-                autocomplete="current-password"
-                required
-              />
-            </label>
-            <button class="button button-primary" id="admin-login-submit" type="submit">
-              Se connecter
-            </button>
-            <p id="admin-login-message" class="admin-login-message">
-              Utilisez vos identifiants administrateur.
-            </p>
-          </form>
+          <div class="section-action">
+            <a class="button button-primary" href="${buildLoginRedirectHref(routeMap.admin)}">Aller à la connexion</a>
+          </div>
         </div>
 
         <aside class="registration-summary">
           <article class="info-card animate-rise">
-            <span class="category-badge">Accès interne</span>
-            <h3>Zone d’administration</h3>
+            <span class="category-badge">Portail unique</span>
+            <h3>Connexion partagée</h3>
             <p>
-              Cette page prépare l’accès aux outils internes du fablab, avec un point d’entrée
-              propre pour l’authentification Supabase.
+              Les comptes utilisateur et admin passent désormais par la même page de connexion.
             </p>
           </article>
           <article class="info-card animate-rise">
-            <span class="subtle-badge">Étape suivante</span>
+            <span class="subtle-badge">Accès admin</span>
             <p>
-              La prochaine étape logique sera le branchement de
-              <code>signInWithPassword</code> et la redirection vers la zone admin protégée.
+              L’onglet admin n’apparaît qu’après connexion avec un profil disposant du rôle
+              <code>admin</code>.
             </p>
           </article>
         </aside>
@@ -5394,6 +5387,20 @@ function buildSignupRedirectHref(target = getCurrentRelativeUrl()) {
   return `${routeMap.signup}?redirect=${encodeURIComponent(target)}`;
 }
 
+async function resolvePostLoginDestination(userId, fallback = routeMap.account) {
+  if (params.has("redirect")) {
+    return getAuthRedirectTarget(fallback);
+  }
+
+  const { data: profile } = await fetchUserProfileRecord(userId);
+
+  if (profile?.role === "admin") {
+    return routeMap.admin;
+  }
+
+  return fallback;
+}
+
 async function fetchUserProfileRecord(userId) {
   if (!userId) {
     return { data: null, error: null };
@@ -5919,6 +5926,9 @@ async function hydrateSessionsPage() {
 
 async function hydrateAuthNavigation() {
   const authLink = document.getElementById("nav-auth-link");
+  const navLinks = document.getElementById("site-nav-links");
+  const footerLinks = document.getElementById("site-footer-links");
+  const activeKey = pageParent[page] ?? page;
 
   if (!authLink) {
     return;
@@ -5927,9 +5937,25 @@ async function hydrateAuthNavigation() {
   const { session, error } = await getCurrentSupabaseSession();
 
   if (error || !session) {
+    if (navLinks) {
+      navLinks.innerHTML = renderNavLinks(activeKey, false);
+    }
+    if (footerLinks) {
+      footerLinks.innerHTML = renderFooterLinks(false);
+    }
     authLink.href = routeMap.login;
     authLink.textContent = "Connexion";
     return;
+  }
+
+  const { data: profile } = await fetchUserProfileRecord(session.user.id);
+  const isAdmin = profile?.role === "admin";
+
+  if (navLinks) {
+    navLinks.innerHTML = renderNavLinks(activeKey, isAdmin);
+  }
+  if (footerLinks) {
+    footerLinks.innerHTML = renderFooterLinks(isAdmin);
   }
 
   authLink.href = routeMap.account;
@@ -6243,7 +6269,7 @@ async function hydrateSignupPage() {
 
   const { session } = await getCurrentSupabaseSession();
   if (session) {
-    window.location.href = getAuthRedirectTarget(routeMap.account);
+    window.location.href = await resolvePostLoginDestination(session.user.id, routeMap.account);
     return;
   }
 
@@ -6298,7 +6324,10 @@ async function hydrateSignupPage() {
           messageNode.dataset.state = "success";
           messageNode.textContent =
             "Compte créé. Quelques données de profil seront finalisées après redirection.";
-          window.location.href = getAuthRedirectTarget(routeMap.account);
+          window.location.href = await resolvePostLoginDestination(
+            data.user.id,
+            routeMap.account,
+          );
           return;
         }
 
@@ -6315,7 +6344,10 @@ async function hydrateSignupPage() {
     if (data.session) {
       messageNode.dataset.state = "success";
       messageNode.textContent = "Compte créé. Redirection vers votre espace...";
-      window.location.href = getAuthRedirectTarget(routeMap.account);
+      window.location.href = await resolvePostLoginDestination(
+        data.user.id,
+        routeMap.account,
+      );
       return;
     }
 
@@ -6345,7 +6377,7 @@ async function hydrateLoginPage() {
 
   const { session } = await getCurrentSupabaseSession();
   if (session) {
-    window.location.href = getAuthRedirectTarget(routeMap.account);
+    window.location.href = await resolvePostLoginDestination(session.user.id, routeMap.account);
     return;
   }
 
@@ -6360,7 +6392,7 @@ async function hydrateLoginPage() {
     messageNode.textContent = "";
     delete messageNode.dataset.state;
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -6375,7 +6407,10 @@ async function hydrateLoginPage() {
 
     messageNode.dataset.state = "success";
     messageNode.textContent = "Connexion réussie. Redirection...";
-    window.location.href = getAuthRedirectTarget(routeMap.account);
+    window.location.href = await resolvePostLoginDestination(
+      data?.user?.id,
+      routeMap.account,
+    );
   });
 }
 
@@ -6615,45 +6650,7 @@ async function hydrateAdminLoginPage() {
     return;
   }
 
-  const formNode = document.getElementById("admin-login-form");
-  const emailInput = document.getElementById("admin-email");
-  const passwordInput = document.getElementById("admin-password");
-  const messageNode = document.getElementById("admin-login-message");
-  const submitButton = document.getElementById("admin-login-submit");
-
-  if (!formNode || !emailInput || !passwordInput || !messageNode || !submitButton) {
-    return;
-  }
-
-  formNode.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
-
-    submitButton.disabled = true;
-    submitButton.textContent = "Connexion en cours...";
-    messageNode.textContent = "";
-    delete messageNode.dataset.state;
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      messageNode.dataset.state = "error";
-      messageNode.textContent = error.message || "Connexion impossible.";
-      submitButton.disabled = false;
-      submitButton.textContent = "Se connecter";
-      return;
-    }
-
-    console.log("admin login data:", data);
-    messageNode.dataset.state = "success";
-    messageNode.textContent = "Connexion réussie. Redirection...";
-    window.location.href = routeMap.admin;
-  });
+  window.location.replace(buildLoginRedirectHref(routeMap.admin));
 }
 
 async function hydrateAdminPage() {
@@ -6672,7 +6669,7 @@ async function hydrateAdminPage() {
   }
 
   if (!session) {
-    window.location.href = routeMap.adminLogin;
+    window.location.href = buildLoginRedirectHref(routeMap.admin);
     return;
   }
 
@@ -6723,7 +6720,7 @@ async function hydrateAdminPage() {
 
       logoutMessage.dataset.state = "success";
       logoutMessage.textContent = "Déconnexion en cours...";
-      window.location.href = routeMap.adminLogin;
+      window.location.href = routeMap.login;
     });
   }
 
