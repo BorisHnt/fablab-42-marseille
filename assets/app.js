@@ -796,6 +796,15 @@ function renderAdminPage(userEmail = "") {
         </article>
       </section>
 
+      ${renderAdminListSection({
+        sectionId: "registrations-admin",
+        eyebrow: "Inscriptions",
+        title: "Demandes reçues",
+        text: "Consultez les inscriptions, mettez à jour leur statut et supprimez les entrées inutiles.",
+        listTitle: "Inscriptions en base",
+        loadingText: "Chargement des inscriptions...",
+      })}
+
       ${renderAdminCrudSection({
         sectionId: "inventory",
         eyebrow: "Inventaire",
@@ -878,15 +887,6 @@ function renderAdminPage(userEmail = "") {
         loadingText: "Chargement des sessions...",
         formMarkup: renderSessionsAdminForm(),
         sectionClassName: "section-card-soft",
-      })}
-
-      ${renderAdminListSection({
-        sectionId: "registrations-admin",
-        eyebrow: "Inscriptions",
-        title: "Demandes reçues",
-        text: "Consultez les inscriptions, mettez à jour leur statut et supprimez les entrées inutiles.",
-        listTitle: "Inscriptions en base",
-        loadingText: "Chargement des inscriptions...",
       })}
     </div>
     <div id="users-admin-modal-root"></div>
