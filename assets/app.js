@@ -29,6 +29,7 @@ const adminState = {
   events: [],
   users: [],
   deletionRequests: [],
+  currentView: "demandes",
   selectedUserId: "",
   modules: [],
   sessionModules: [],
@@ -858,110 +859,162 @@ function renderAdminPage(userEmail = "") {
           <span>Le suivi des demandes et des statuts de participation.</span>
         </article>
       </section>
+      ${renderAdminSubnav()}
 
-      ${renderAdminListSection({
-        sectionId: "registrations-admin",
-        eyebrow: "Inscriptions",
-        title: "Demandes reçues",
-        text: "Consultez les inscriptions, mettez à jour leur statut et supprimez les entrées inutiles.",
-        listTitle: "Inscriptions en base",
-        loadingText: "Chargement des inscriptions...",
-      })}
+      <div class="admin-view-stack">
+        <div class="admin-view-panel" data-admin-view-panel="demandes">
+          ${renderAdminListSection({
+            sectionId: "registrations-admin",
+            eyebrow: "Inscriptions",
+            title: "Demandes reçues",
+            text: "Consultez les inscriptions, mettez à jour leur statut et supprimez les entrées inutiles.",
+            listTitle: "Inscriptions en base",
+            loadingText: "Chargement des inscriptions...",
+          })}
 
-      ${renderAdminCrudSection({
-        sectionId: "inventory",
-        eyebrow: "Inventaire",
-        title: "Matériel disponible",
-        text: "Gérez les références, quantités et emplacements du matériel réellement disponible dans le fablab.",
-        formTitle: "Ajouter un item",
-        listTitle: "Inventaire actuel",
-        loadingText: "Chargement de l’inventaire...",
-        formMarkup: renderInventoryAdminForm(),
-      })}
+          ${renderAdminListSection({
+            sectionId: "deletion-requests-admin",
+            eyebrow: "Comptes",
+            title: "Demandes de suppression de compte",
+            text: "Examinez les demandes utilisateur, approuvez-les, refusez-les ou traitez-les via la suppression Auth sécurisée.",
+            listTitle: "Demandes en base",
+            loadingText: "Chargement des demandes de suppression...",
+          })}
+        </div>
 
-      ${renderAdminCrudSection({
-        sectionId: "needed-equipment",
-        eyebrow: "Besoins",
-        title: "Matériel nécessaire",
-        text: "Suivez les achats à lancer, les besoins prioritaires et les notes utiles à la coordination.",
-        formTitle: "Ajouter un besoin",
-        listTitle: "Besoins suivis",
-        loadingText: "Chargement des besoins matériels...",
-        formMarkup: renderNeededEquipmentAdminForm(),
-        sectionClassName: "section-card-soft",
-      })}
+        <div class="admin-view-panel is-hidden" data-admin-view-panel="programmation">
+          ${renderAdminCrudSection({
+            sectionId: "sessions-admin",
+            eyebrow: "Sessions",
+            title: "Sessions de cours",
+            text: "Créez les sessions, reliez-les aux modules et gardez une lecture claire des places disponibles.",
+            formTitle: "Ajouter une session",
+            listTitle: "Sessions programmées",
+            loadingText: "Chargement des sessions...",
+            formMarkup: renderSessionsAdminForm(),
+            sectionClassName: "section-card-soft",
+          })}
 
-      ${renderAdminCrudSection({
-        sectionId: "events-admin",
-        eyebrow: "Agenda",
-        title: "Événements publiés",
-        text: "Publiez, ajustez ou retirez les événements visibles sur le site public.",
-        formTitle: "Ajouter un événement",
-        listTitle: "Événements en base",
-        loadingText: "Chargement des événements...",
-        formMarkup: renderEventsAdminForm(),
-      })}
+          ${renderAdminCrudSection({
+            sectionId: "events-admin",
+            eyebrow: "Agenda",
+            title: "Événements publiés",
+            text: "Publiez, ajustez ou retirez les événements visibles sur le site public.",
+            formTitle: "Ajouter un événement",
+            listTitle: "Événements en base",
+            loadingText: "Chargement des événements...",
+            formMarkup: renderEventsAdminForm(),
+          })}
+        </div>
 
-      ${renderAdminListSection({
-        sectionId: "users-admin",
-        eyebrow: "Utilisateurs",
-        title: "Utilisateurs du site",
-        text: "Consultez les comptes inscrits, leurs rôles et leurs identifiants utiles au suivi pédagogique.",
-        listTitle: "Comptes utilisateurs",
-        loadingText: "Chargement des utilisateurs...",
-        headerMarkup: `
-          <label class="admin-search-field" for="users-admin-search">
-            Rechercher
-            <input id="users-admin-search" type="search" placeholder="Nom, email, login 42" />
-          </label>
-        `,
-      })}
+        <div class="admin-view-panel is-hidden" data-admin-view-panel="utilisateurs">
+          ${renderAdminListSection({
+            sectionId: "users-admin",
+            eyebrow: "Utilisateurs",
+            title: "Utilisateurs du site",
+            text: "Consultez les comptes inscrits, leurs rôles et leurs identifiants utiles au suivi pédagogique.",
+            listTitle: "Comptes utilisateurs",
+            loadingText: "Chargement des utilisateurs...",
+            headerMarkup: `
+              <label class="admin-search-field" for="users-admin-search">
+                Rechercher
+                <input id="users-admin-search" type="search" placeholder="Nom, email, login 42" />
+              </label>
+            `,
+          })}
 
-      ${renderAdminListSection({
-        sectionId: "deletion-requests-admin",
-        eyebrow: "Comptes",
-        title: "Demandes de suppression de compte",
-        text: "Examinez les demandes utilisateur, approuvez-les, refusez-les ou traitez-les via la suppression Auth sécurisée.",
-        listTitle: "Demandes en base",
-        loadingText: "Chargement des demandes de suppression...",
-      })}
+          ${renderAdminCrudSection({
+            sectionId: "completions-admin",
+            eyebrow: "Validations",
+            title: "Modules validés",
+            text: "Attribuez manuellement des validations de modules, rattachez-les à une session si besoin, puis suivez proprement leur historique.",
+            formTitle: "Attribuer un module validé",
+            listTitle: "Validations enregistrées",
+            loadingText: "Chargement des validations...",
+            formMarkup: renderModuleCompletionsAdminForm(),
+          })}
+        </div>
 
-      ${renderAdminCrudSection({
-        sectionId: "modules-admin",
-        eyebrow: "Modules",
-        title: "Modules disponibles",
-        text: "Gérez le catalogue pédagogique du fablab avec une fiche claire pour chaque module publié.",
-        formTitle: "Ajouter un module",
-        listTitle: "Catalogue des modules",
-        loadingText: "Chargement des modules...",
-        formMarkup: renderModulesAdminForm(),
-        sectionClassName: "section-card-soft",
-      })}
+        <div class="admin-view-panel is-hidden" data-admin-view-panel="catalogue">
+          ${renderAdminCrudSection({
+            sectionId: "modules-admin",
+            eyebrow: "Modules",
+            title: "Modules disponibles",
+            text: "Gérez le catalogue pédagogique du fablab avec une fiche claire pour chaque module publié.",
+            formTitle: "Ajouter un module",
+            listTitle: "Catalogue des modules",
+            loadingText: "Chargement des modules...",
+            formMarkup: renderModulesAdminForm(),
+            sectionClassName: "section-card-soft",
+          })}
+        </div>
 
-      ${renderAdminCrudSection({
-        sectionId: "completions-admin",
-        eyebrow: "Validations",
-        title: "Modules validés",
-        text: "Attribuez manuellement des validations de modules, rattachez-les à une session si besoin, puis suivez proprement leur historique.",
-        formTitle: "Attribuer un module validé",
-        listTitle: "Validations enregistrées",
-        loadingText: "Chargement des validations...",
-        formMarkup: renderModuleCompletionsAdminForm(),
-      })}
+        <div class="admin-view-panel is-hidden" data-admin-view-panel="logistique">
+          ${renderAdminCrudSection({
+            sectionId: "inventory",
+            eyebrow: "Inventaire",
+            title: "Matériel disponible",
+            text: "Gérez les références, quantités et emplacements du matériel réellement disponible dans le fablab.",
+            formTitle: "Ajouter un item",
+            listTitle: "Inventaire actuel",
+            loadingText: "Chargement de l’inventaire...",
+            formMarkup: renderInventoryAdminForm(),
+          })}
 
-      ${renderAdminCrudSection({
-        sectionId: "sessions-admin",
-        eyebrow: "Sessions",
-        title: "Sessions de cours",
-        text: "Créez les sessions, reliez-les aux modules et gardez une lecture claire des places disponibles.",
-        formTitle: "Ajouter une session",
-        listTitle: "Sessions programmées",
-        loadingText: "Chargement des sessions...",
-        formMarkup: renderSessionsAdminForm(),
-        sectionClassName: "section-card-soft",
-      })}
+          ${renderAdminCrudSection({
+            sectionId: "needed-equipment",
+            eyebrow: "Besoins",
+            title: "Matériel nécessaire",
+            text: "Suivez les achats à lancer, les besoins prioritaires et les notes utiles à la coordination.",
+            formTitle: "Ajouter un besoin",
+            listTitle: "Besoins suivis",
+            loadingText: "Chargement des besoins matériels...",
+            formMarkup: renderNeededEquipmentAdminForm(),
+            sectionClassName: "section-card-soft",
+          })}
+        </div>
+
+        <div class="admin-view-panel is-hidden" data-admin-view-panel="archives">
+          ${renderAdminListSection({
+            sectionId: "archives-admin",
+            eyebrow: "Archives",
+            title: "Historique traité",
+            text: "Retrouvez ici les sessions déjà passées et les demandes de suppression déjà gérées, avec anonymisation des utilisateurs concernés.",
+            listTitle: "Archives du fablab",
+            loadingText: "Chargement des archives...",
+          })}
+        </div>
+      </div>
     </div>
     <div id="users-admin-modal-root"></div>
+  `;
+}
+
+function renderAdminSubnav() {
+  return `
+    <section class="admin-subnav-wrap animate-rise">
+      <div class="admin-subnav" id="admin-subnav">
+        ${renderAdminSubnavButton("demandes", "Demandes", "admin-view-count-demandes")}
+        ${renderAdminSubnavButton("programmation", "Programmation", "admin-view-count-programmation")}
+        ${renderAdminSubnavButton("utilisateurs", "Utilisateurs", "admin-view-count-utilisateurs")}
+        ${renderAdminSubnavButton("catalogue", "Catalogue", "admin-view-count-catalogue")}
+        ${renderAdminSubnavButton("logistique", "Logistique", "admin-view-count-logistique")}
+        ${renderAdminSubnavButton("archives", "Archives", "admin-view-count-archives")}
+      </div>
+    </section>
+  `;
+}
+
+function renderAdminSubnavButton(viewKey, label, countId) {
+  return `
+    <button
+      class="admin-subnav-button ${adminState.currentView === viewKey ? "active" : ""}"
+      data-admin-view="${viewKey}"
+      type="button"
+    >
+      <span>${label}</span>
+      <span class="subtle-badge" id="${countId}">0</span>
+    </button>
   `;
 }
 
@@ -2038,6 +2091,16 @@ function miniDetailCard(title, text) {
 
 function cacheAdminDom() {
   adminDom = {
+    views: {
+      buttons: Array.from(document.querySelectorAll("[data-admin-view]")),
+      panels: Array.from(document.querySelectorAll("[data-admin-view-panel]")),
+      demandesCount: document.getElementById("admin-view-count-demandes"),
+      programmationCount: document.getElementById("admin-view-count-programmation"),
+      utilisateursCount: document.getElementById("admin-view-count-utilisateurs"),
+      catalogueCount: document.getElementById("admin-view-count-catalogue"),
+      logistiqueCount: document.getElementById("admin-view-count-logistique"),
+      archivesCount: document.getElementById("admin-view-count-archives"),
+    },
     inventory: {
       form: document.getElementById("inventory-form"),
       formTitle: document.getElementById("inventory-form-title"),
@@ -2099,6 +2162,11 @@ function cacheAdminDom() {
       list: document.getElementById("deletion-requests-admin-list"),
       count: document.getElementById("deletion-requests-admin-count"),
       message: document.getElementById("deletion-requests-admin-message"),
+    },
+    archives: {
+      list: document.getElementById("archives-admin-list"),
+      count: document.getElementById("archives-admin-count"),
+      message: document.getElementById("archives-admin-message"),
     },
     modules: {
       form: document.getElementById("modules-admin-form"),
@@ -2169,6 +2237,7 @@ function cacheAdminDom() {
 }
 
 function bindAdminDashboardInteractions() {
+  bindAdminViewControls();
   bindInventoryAdminControls();
   bindNeededEquipmentAdminControls();
   bindEventsAdminControls();
@@ -2185,6 +2254,7 @@ async function initializeAdminDashboard() {
     return;
   }
 
+  applyAdminViewState();
   renderAdminMetrics();
   await Promise.all([
     refreshInventorySection(),
@@ -2199,6 +2269,40 @@ async function initializeAdminDashboard() {
   ]);
 
   resetModuleCompletionForm({ keepMessage: false });
+}
+
+function bindAdminViewControls() {
+  const viewButtons = adminDom?.views?.buttons ?? [];
+
+  if (!viewButtons.length) {
+    return;
+  }
+
+  viewButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      adminState.currentView = button.dataset.adminView || "demandes";
+      applyAdminViewState();
+    });
+  });
+}
+
+function applyAdminViewState() {
+  const views = adminDom?.views;
+
+  if (!views) {
+    return;
+  }
+
+  views.buttons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.adminView === adminState.currentView);
+  });
+
+  views.panels.forEach((panel) => {
+    panel.classList.toggle(
+      "is-hidden",
+      panel.dataset.adminViewPanel !== adminState.currentView,
+    );
+  });
 }
 
 function bindUsersAdminControls() {
@@ -4174,6 +4278,99 @@ function renderDeletionRequestAdminCard(item) {
   `;
 }
 
+function renderAdminArchivesList(archivedSessions, handledDeletionRequests) {
+  if (!archivedSessions.length && !handledDeletionRequests.length) {
+    return renderAdminEmptyState("Aucune archive à afficher pour le moment.");
+  }
+
+  return `
+    <div class="admin-event-groups">
+      <div class="admin-event-group">
+        <div class="admin-panel-head admin-panel-head-start">
+          <h3>Sessions archivées</h3>
+          <span class="subtle-badge">${formatAdminCount(
+            archivedSessions.length,
+            "session",
+            "sessions",
+          )}</span>
+        </div>
+        ${
+          archivedSessions.length
+            ? renderAdminTable(
+                ["Titre", "Date", "Horaires", "Places", "Modules"],
+                archivedSessions
+                  .map(
+                    (item) => `
+                      <tr>
+                        <td><strong>${escapeHtml(item.title)}</strong></td>
+                        <td>${escapeHtml(formatSafeDate(item.sessionDate))}</td>
+                        <td>${escapeHtml(item.timeRange || "Horaire à confirmer")}</td>
+                        <td>${escapeHtml(
+                          item.seatsTotal !== null
+                            ? `${item.seatsRemaining ?? 0} / ${item.seatsTotal}`
+                            : "Non défini",
+                        )}</td>
+                        <td>${renderAdminTagList(item.modules)}</td>
+                      </tr>
+                    `,
+                  )
+                  .join(""),
+              )
+            : renderAdminEmptyState("Aucune session passée pour le moment.")
+        }
+      </div>
+      <div class="admin-event-group">
+        <div class="admin-panel-head admin-panel-head-start">
+          <h3>Demandes gérées</h3>
+          <span class="subtle-badge">${formatAdminCount(
+            handledDeletionRequests.length,
+            "demande",
+            "demandes",
+          )}</span>
+        </div>
+        ${
+          handledDeletionRequests.length
+            ? `
+                <div class="admin-deletion-request-grid">
+                  ${handledDeletionRequests
+                    .map(
+                      (item) => `
+                        <article class="info-card admin-deletion-request-card">
+                          <div class="card-topline">
+                            <span class="eyebrow eyebrow-tight">Compte traité</span>
+                            <span class="subtle-badge">${escapeHtml(item.statusLabel)}</span>
+                          </div>
+                          <h3>${escapeHtml(maskSensitiveValue(item.userDisplayLabel))}</h3>
+                          <div class="admin-badge-list">
+                            <span class="subtle-badge">${escapeHtml(maskSensitiveValue(item.userEmail))}</span>
+                            ${
+                              item.userLogin42
+                                ? `<span class="tag">${escapeHtml(maskSensitiveValue(item.userLogin42))}</span>`
+                                : ""
+                            }
+                          </div>
+                          <p class="admin-cell-meta">
+                            Demande : ${escapeHtml(item.requestedAtLabel)}
+                            ${item.reviewedAtLabel ? ` • Revue : ${escapeHtml(item.reviewedAtLabel)}` : ""}
+                          </p>
+                          ${
+                            item.adminNote
+                              ? `<p class="session-notes"><strong>Note admin :</strong> ${escapeHtml(item.adminNote)}</p>`
+                              : ""
+                          }
+                        </article>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              `
+            : renderAdminEmptyState("Aucune demande gérée à archiver pour le moment.")
+        }
+      </div>
+    </div>
+  `;
+}
+
 function renderAdminTable(headers, rowsHtml) {
   return `
     <div class="table-card admin-table-card">
@@ -4420,6 +4617,75 @@ function renderAdminMetrics() {
       "inscriptions",
     );
   }
+
+  renderAdminViewCounts();
+  refreshAdminArchivesSection();
+}
+
+function renderAdminViewCounts() {
+  const views = adminDom?.views;
+
+  if (!views) {
+    return;
+  }
+
+  const actionableDeletionRequests = adminState.deletionRequests.filter(
+    (item) => item.status !== "processed",
+  ).length;
+  const archivedSessionsCount = adminState.sessions.filter((item) => isSessionArchived(item)).length;
+  const handledDeletionRequestsCount = adminState.deletionRequests.filter(
+    (item) => item.status !== "pending",
+  ).length;
+
+  if (views.demandesCount) {
+    views.demandesCount.textContent = String(
+      adminState.registrations.length + actionableDeletionRequests,
+    );
+  }
+
+  if (views.programmationCount) {
+    views.programmationCount.textContent = String(adminState.sessions.length + adminState.events.length);
+  }
+
+  if (views.utilisateursCount) {
+    views.utilisateursCount.textContent = String(adminState.users.length);
+  }
+
+  if (views.catalogueCount) {
+    views.catalogueCount.textContent = String(adminState.modules.length);
+  }
+
+  if (views.logistiqueCount) {
+    views.logistiqueCount.textContent = String(
+      adminState.inventory.length + adminState.neededEquipment.length,
+    );
+  }
+
+  if (views.archivesCount) {
+    views.archivesCount.textContent = String(
+      archivedSessionsCount + handledDeletionRequestsCount,
+    );
+  }
+}
+
+function refreshAdminArchivesSection() {
+  const section = adminDom?.archives;
+
+  if (!section?.list || !section?.count) {
+    return;
+  }
+
+  const archivedSessions = adminState.sessions.filter((item) => isSessionArchived(item));
+  const handledDeletionRequests = adminState.deletionRequests.filter(
+    (item) => item.status !== "pending",
+  );
+
+  section.count.textContent = formatAdminCount(
+    archivedSessions.length + handledDeletionRequests.length,
+    "archive",
+    "archives",
+  );
+  section.list.innerHTML = renderAdminArchivesList(archivedSessions, handledDeletionRequests);
 }
 
 async function handleInventoryFormSubmit(event) {
@@ -5639,6 +5905,16 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function maskSensitiveValue(value) {
+  const source = String(value ?? "").trim();
+
+  if (!source) {
+    return "Inconnu";
+  }
+
+  return `${source.charAt(0)}${"*".repeat(Math.max(source.length - 1, 4))}`;
+}
+
 function moduleLink(moduleId) {
   return `module.html?id=${moduleId}`;
 }
@@ -5726,7 +6002,7 @@ function parseLocalDateTime(dateValue, timeValue = "00:00") {
 }
 
 function getSessionStartDateTime(session) {
-  const dateValue = session?.session_date ?? session?.date ?? "";
+  const dateValue = session?.session_date ?? session?.sessionDate ?? session?.date ?? "";
   const startTime = session?.start_time ?? session?.startTime ?? "";
 
   if (!dateValue || !startTime) {
@@ -5737,7 +6013,7 @@ function getSessionStartDateTime(session) {
 }
 
 function getSessionEndDateTime(session) {
-  const dateValue = session?.session_date ?? session?.date ?? "";
+  const dateValue = session?.session_date ?? session?.sessionDate ?? session?.date ?? "";
   const endTime =
     session?.end_time ?? session?.endTime ?? session?.start_time ?? session?.startTime ?? "23:59";
 
@@ -5773,7 +6049,7 @@ function isSessionRegistrationClosed(session, referenceDate = new Date()) {
 }
 
 function isEventArchived(event, referenceDate = new Date()) {
-  const dateValue = event?.event_date ?? event?.date ?? "";
+  const dateValue = event?.event_date ?? event?.eventDate ?? event?.date ?? "";
   const endTime = event?.end_time ?? event?.endTime ?? "23:59";
   const eventEndDateTime = parseLocalDateTime(dateValue, endTime);
 
