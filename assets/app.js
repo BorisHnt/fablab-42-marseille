@@ -4650,13 +4650,19 @@ async function handleSessionsAdminFormSubmit(event) {
   }
 
   const selectedModuleIds = getSelectedSessionModuleIds();
+  const sessionId = section.id?.value || null;
+  const seatsTotal = normalizeOptionalNumber(section.seatsTotal?.value);
   const payload = {
     title: section.title?.value.trim() ?? "",
     session_date: section.date?.value ?? "",
     start_time: normalizeOptionalString(section.startTime?.value),
     end_time: normalizeOptionalString(section.endTime?.value),
     level: normalizeOptionalString(section.level?.value),
-    seats_total: normalizeOptionalNumber(section.seatsTotal?.value),
+    seats_total: seatsTotal,
+    seats_remaining: resolveSessionSeatsRemainingPayload({
+      sessionId,
+      seatsTotal,
+    }),
     notes: normalizeOptionalString(section.notes?.value),
   };
 
@@ -4679,8 +4685,6 @@ async function handleSessionsAdminFormSubmit(event) {
   }
 
   section.submit.disabled = true;
-
-  const sessionId = section.id?.value || null;
   let targetSessionId = sessionId;
 
   if (sessionId) {
@@ -4761,6 +4765,27 @@ async function handleSessionsAdminFormSubmit(event) {
   section.submit.disabled = false;
 
   await Promise.all([refreshSessionsAdminSection(), refreshRegistrationsAdminSection()]);
+}
+
+function resolveSessionSeatsRemainingPayload({ sessionId, seatsTotal }) {
+  if (seatsTotal === null) {
+    return null;
+  }
+
+  if (!sessionId) {
+    return seatsTotal;
+  }
+
+  const existingRecord = findAdminRecordById(adminState.sessions, sessionId);
+  const existingSeatsTotal = normalizeOptionalNumber(existingRecord?.seatsTotal);
+  const existingSeatsRemaining = normalizeOptionalNumber(existingRecord?.seatsRemaining);
+
+  if (existingSeatsTotal === null || existingSeatsRemaining === null) {
+    return seatsTotal;
+  }
+
+  const bookedSeats = Math.max(existingSeatsTotal - existingSeatsRemaining, 0);
+  return Math.max(seatsTotal - bookedSeats, 0);
 }
 
 async function handleModuleCompletionFormSubmit(event) {
