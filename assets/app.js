@@ -3769,7 +3769,7 @@ function renderSelectedUserAdminPanel() {
         <form class="admin-user-module-form" id="users-admin-module-form" data-user-id="${escapeHtml(selectedUser.id)}">
           <div class="admin-panel-head">
             <h3>Validation des modules</h3>
-            <span class="subtle-badge">Corriger présence, absence ou validation</span>
+            <span class="subtle-badge">Ajouter, corriger ou retirer une validation</span>
           </div>
           ${
             adminState.modules.length
@@ -3779,9 +3779,9 @@ function renderSelectedUserAdminPanel() {
                     <thead>
                       <tr>
                         <th>Module</th>
-                        <th>Passé</th>
+                        <th>Validé</th>
                         <th>Date de validation</th>
-                        <th>Statut</th>
+                        <th>État</th>
                       </tr>
                     </thead>
                     <tbody>
