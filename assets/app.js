@@ -2,6 +2,7 @@ import {
   modules,
 } from "./data.js";
 import { supabase } from "./supabase-client.js";
+import { SUPABASE_URL } from "./supabase-config.js";
 
 const page = document.body.dataset.page;
 const content = document.getElementById("page-content");
@@ -2932,11 +2933,7 @@ async function deleteAdminUserRecord(recordId, button) {
   button.disabled = true;
   setAdminMessage(section.message);
 
-  const { error } = await supabase.functions.invoke("admin-delete-user", {
-    body: {
-      user_id: record.id,
-    },
-  });
+  const { error } = await invokeDeleteAuthUserFunction(record.id);
 
   if (error) {
     setAdminMessage(
@@ -2960,14 +2957,70 @@ async function deleteAdminUserRecord(recordId, button) {
   ]);
 }
 
+async function invokeDeleteAuthUserFunction(userId) {
+  const { data, error } = await supabase.auth.getSession();
+  const accessToken = data?.session?.access_token ?? "";
+
+  if (error || !accessToken) {
+    return {
+      error: new Error(
+        error?.message || "Aucune session admin valide n’est disponible pour appeler la suppression.",
+      ),
+    };
+  }
+
+  let response;
+
+  try {
+    response = await fetch(`${SUPABASE_URL}/functions/v1/delete-auth-user`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ user_id: userId }),
+    });
+  } catch (fetchError) {
+    return {
+      error:
+        fetchError instanceof Error
+          ? fetchError
+          : new Error("La fonction de suppression n’a pas pu être contactée."),
+    };
+  }
+
+  if (response.ok) {
+    return { error: null };
+  }
+
+  const responseText = await response.text();
+
+  try {
+    const parsed = JSON.parse(responseText);
+    const message =
+      parsed?.error ||
+      parsed?.message ||
+      parsed?.msg ||
+      `Suppression impossible (${response.status}).`;
+
+    return { error: new Error(String(message)) };
+  } catch {
+    return {
+      error: new Error(
+        responseText || `Suppression impossible (${response.status} ${response.statusText}).`,
+      ),
+    };
+  }
+}
+
 function buildAdminUserDeletionError(error) {
   const message = String(error?.message ?? "").trim();
 
-  if (!message || /Functions?HttpError|404|not found/i.test(message)) {
-    return "La suppression complète du compte Auth nécessite une Edge Function sécurisée `admin-delete-user` côté backend.";
+  if (!message || /404|not found/i.test(message)) {
+    return "La fonction sécurisée `delete-auth-user` est introuvable ou inaccessible pour le moment.";
   }
 
-  return `${message} La suppression complète du compte Auth nécessite une Edge Function sécurisée si elle n’est pas déjà branchée.`;
+  return message;
 }
 
 function syncModuleCompletionFormOptions() {
