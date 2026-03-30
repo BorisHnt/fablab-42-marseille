@@ -485,7 +485,7 @@ function renderRegistrationPage() {
             <div>
               <strong>Votre demande a été enregistrée.</strong>
               <p>
-              Votre inscription a bien été transmise. Les places affichées ont été mises à jour.
+              Votre inscription a bien été enregistrée. Les places affichées ont été mises à jour.
               </p>
             </div>
           </div>
@@ -500,7 +500,7 @@ function renderRegistrationPage() {
           <article class="info-card animate-rise">
             <span class="subtle-badge">Évolution future</span>
             <p>
-              Cette vue peut accueillir plus tard la gestion des places, une validation admin,
+              Cette vue peut accueillir plus tard la gestion des places, une validation par un admin,
               un paiement ou un historique d’inscription.
             </p>
           </article>
@@ -538,7 +538,7 @@ function renderSignupPage() {
           ${sectionHeading(
             "Compte",
             "Créer un espace personnel",
-            "Inscrivez-vous pour suivre vos sessions, retrouver vos modules passés et gérer vos inscriptions depuis un espace dédié.",
+            "Inscrivez-vous pour suivre vos sessions, retrouver vos modules validés et gérer vos inscriptions depuis un espace dédié.",
           )}
 
           <form class="signup-form" id="user-signup-form">
@@ -588,7 +588,7 @@ function renderSignupPage() {
             <span class="category-badge">Déjà inscrit</span>
             <h3>Vous avez déjà un compte ?</h3>
             <p>
-              Connectez-vous pour retrouver vos sessions futures, vos modules passés et votre tableau
+              Connectez-vous pour retrouver vos sessions futures, vos modules validés et votre tableau
               de bord personnel.
             </p>
             <a class="button button-ghost" href="${loginHref}">Se connecter</a>
@@ -597,7 +597,7 @@ function renderSignupPage() {
             <span class="subtle-badge">Parcours utilisateur</span>
             <p>
               Le compte sert à sécuriser les inscriptions, éviter les doublons et vous permettre de
-              suivre votre progression proprement.
+              suivre votre parcours proprement.
             </p>
           </article>
         </aside>
@@ -698,7 +698,7 @@ function renderUserDashboardPage(summary) {
         ${sectionHeading(
           "Mon espace",
           `Bienvenue ${displayName}`,
-          "Retrouvez ici vos prochaines sessions, vos modules passés et les actions utiles liées à votre parcours au fablab.",
+          "Retrouvez ici vos prochaines sessions, vos modules validés et les actions utiles liées à votre parcours au fablab.",
         )}
       </section>
 
@@ -729,7 +729,7 @@ function renderUserDashboardPage(summary) {
             </article>
             <article class="metric-card">
               <strong>${summary.completedModulesCount}</strong>
-              <span>modules passés</span>
+              <span>modules validés</span>
             </article>
           </div>
           <div class="user-actions-row">
@@ -756,11 +756,11 @@ function renderUserDashboardPage(summary) {
       <section class="section-card section-card-soft animate-rise">
         ${sectionHeading(
           "Parcours",
-          "Mes modules passés",
-          "Une lecture simple de ce que vous avez déjà suivi, pour voir d’où vous repartez.",
+          "Mes modules validés",
+          "Une lecture simple des modules déjà validés pour suivre votre progression.",
         )}
         <div class="card-grid two-columns" id="user-completed-modules">
-          ${renderEventsLoadingState("Chargement", "Récupération de vos modules passés...")}
+          ${renderEventsLoadingState("Chargement", "Récupération de vos modules validés...")}
         </div>
       </section>
 
@@ -903,7 +903,7 @@ function renderAdminPage(userEmail = "") {
             headerMarkup: `
               <label class="admin-search-field" for="users-admin-search">
                 Rechercher
-                <input id="users-admin-search" type="search" placeholder="Nom, email, login 42" />
+                <input id="users-admin-search" type="search" placeholder="Nom, e-mail, identifiant 42" />
               </label>
             `,
           })}
@@ -912,9 +912,9 @@ function renderAdminPage(userEmail = "") {
             sectionId: "completions-admin",
             eyebrow: "Validations",
             title: "Modules validés",
-            text: "Attribuez manuellement des validations de modules, rattachez-les à une session si besoin, puis suivez proprement leur historique.",
-            formTitle: "Attribuer un module validé",
-            listTitle: "Validations enregistrées",
+            text: "Enregistrez manuellement des modules validés, rattachez-les à une session si besoin, puis suivez leur historique.",
+            formTitle: "Enregistrer un module validé",
+            listTitle: "Modules validés enregistrés",
             loadingText: "Chargement des validations...",
             formMarkup: renderModuleCompletionsAdminForm(),
           })}
@@ -964,7 +964,7 @@ function renderAdminPage(userEmail = "") {
             sectionId: "archives-admin",
             eyebrow: "Archives",
             title: "Historique traité",
-            text: "Retrouvez ici les sessions déjà passées et les demandes de suppression déjà gérées, avec anonymisation des utilisateurs concernés.",
+            text: "Retrouvez ici les sessions terminées et les demandes de suppression déjà gérées, avec anonymisation des utilisateurs concernés.",
             listTitle: "Archives du fablab",
             loadingText: "Chargement des archives...",
           })}
@@ -1512,7 +1512,7 @@ function renderAdminLoginPage() {
             "Cette ancienne entrée admin redirige maintenant vers le portail de connexion unique.",
           )}
           <div class="section-action">
-            <a class="button button-primary" href="${buildLoginRedirectHref(routeMap.admin)}">Aller à la connexion</a>
+            <a class="button button-primary" href="${buildLoginRedirectHref(routeMap.admin)}">Aller se connecter</a>
           </div>
         </div>
 
@@ -3842,7 +3842,7 @@ function renderAdminUserModuleEditor(moduleItem, completionRecord) {
         }
         ${
           completionRecord?.validatedByLabel
-            ? `<div class="admin-cell-meta">Dernière validation : ${escapeHtml(completionRecord.validatedByLabel)}</div>`
+            ? `<div class="admin-cell-meta">Dernière validation par : ${escapeHtml(completionRecord.validatedByLabel)}</div>`
             : ""
         }
       </td>
@@ -4385,7 +4385,7 @@ function renderAdminArchivesList(archivedSessions, archivedEvents, handledDeleti
                       (item) => `
                         <article class="info-card admin-deletion-request-card">
                           <div class="card-topline">
-                            <span class="eyebrow eyebrow-tight">Compte traité</span>
+                            <span class="eyebrow eyebrow-tight">Demande traitée</span>
                             <span class="subtle-badge">${escapeHtml(item.statusLabel)}</span>
                           </div>
                           <h3>${escapeHtml(maskSensitiveValue(item.userDisplayLabel))}</h3>
@@ -6472,7 +6472,7 @@ function renderUserAccountDeletionPanel(requests) {
     <span class="category-badge">Suppression de compte</span>
     <h3>Demander la suppression du compte</h3>
     <p>
-      La suppression réelle du compte passe par une validation admin puis un traitement sécurisé.
+      La suppression réelle du compte passe par une validation par un admin puis un traitement sécurisé.
       Vous pouvez suivre ici l’état de votre demande.
     </p>
     ${
@@ -6574,13 +6574,18 @@ function renderCompletedModuleCard(moduleItem) {
   return `
     <article class="info-card user-module-card animate-rise">
       <div class="card-topline">
-        <span class="eyebrow eyebrow-tight">Module passé</span>
+        <span class="eyebrow eyebrow-tight">Module validé</span>
         ${moduleItem.status ? `<span>${moduleItem.status}</span>` : ""}
       </div>
       <h3>${moduleItem.title}</h3>
       <p>${moduleItem.shortDescription}</p>
       <div class="session-meta">
         ${moduleItem.duration ? `<div class="inline-detail">${moduleItem.duration}</div>` : ""}
+        ${
+          moduleItem.completionDate
+            ? `<div class="inline-detail">Validé le ${formatSafeDate(moduleItem.completionDate)}</div>`
+            : ""
+        }
         ${
           moduleItem.sessionDate
             ? `<div class="inline-detail">${formatSafeDate(moduleItem.sessionDate)}</div>`
@@ -8025,14 +8030,14 @@ async function hydrateUserDashboardPage() {
       if (completedResult.error) {
         completedNode.innerHTML = renderUserStateCard(
           "Erreur",
-          "Impossible de charger vos modules passés",
+          "Impossible de charger vos modules validés",
           completedResult.error.message || "Réessayez dans un instant.",
         );
       } else if (!completedModules.length) {
         completedNode.innerHTML = renderUserStateCard(
           "Parcours",
-          "Aucun module passé",
-          "Vos modules déjà suivis apparaîtront ici une fois vos sessions terminées.",
+          "Aucun module validé",
+          "Vos modules validés apparaîtront ici dès qu’ils auront été enregistrés.",
         );
       } else {
         completedNode.innerHTML = completedModules.map(renderCompletedModuleCard).join("");
