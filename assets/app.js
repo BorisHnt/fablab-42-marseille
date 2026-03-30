@@ -86,9 +86,6 @@ const registrationStatusOptions = [
 
 const moduleCompletionStatusOptions = [
   "completed",
-  "attended",
-  "partial",
-  "failed",
 ];
 
 const publicNavItems = [
@@ -1434,12 +1431,8 @@ function renderModuleCompletionsAdminForm() {
           />
         </label>
       </div>
-      <label for="completions-admin-status">
-        Statut
-        <select id="completions-admin-status" name="status" required>
-          ${renderModuleCompletionStatusOptions("completed")}
-        </select>
-      </label>
+      <input id="completions-admin-status" name="status" type="hidden" value="completed" />
+      <p class="admin-helper-text">Toute validation enregistrée est marquée comme module validé.</p>
       <label for="completions-admin-notes">
         Notes
         <textarea id="completions-admin-notes" name="notes" rows="4"></textarea>
@@ -3153,19 +3146,12 @@ function toggleAdminUserModuleFields(container, checkbox) {
 
   const cardNode = checkbox.closest(".admin-user-module-row");
   const dateInput = container.querySelector(`[data-module-date="${CSS.escape(String(moduleId))}"]`);
-  const statusSelect = container.querySelector(
-    `[data-module-status="${CSS.escape(String(moduleId))}"]`,
-  );
 
   if (dateInput) {
     dateInput.disabled = !checkbox.checked;
     if (checkbox.checked && !dateInput.value) {
       dateInput.value = toNativeDateInputValue(new Date());
     }
-  }
-
-  if (statusSelect) {
-    statusSelect.disabled = !checkbox.checked;
   }
 
   cardNode?.classList.toggle("is-checked", checkbox.checked);
@@ -3199,14 +3185,10 @@ async function handleUsersAdminModulesFormSubmit(formNode) {
   for (const checkbox of toggles) {
     const moduleId = checkbox.dataset.moduleId;
     const dateInput = formNode.querySelector(`[data-module-date="${CSS.escape(String(moduleId))}"]`);
-    const statusSelect = formNode.querySelector(
-      `[data-module-status="${CSS.escape(String(moduleId))}"]`,
-    );
     const existingRecord = completionMap.get(String(moduleId));
 
     if (checkbox.checked) {
       const completionDate = normalizeDateEntry(dateInput?.value);
-      const status = statusSelect?.value ?? "completed";
 
       if (completionDate === null) {
         setAdminMessage(
@@ -3231,7 +3213,7 @@ async function handleUsersAdminModulesFormSubmit(formNode) {
         module_id: moduleId,
         validated_by: adminSessionUser.id,
         completion_date: completionDate,
-        status,
+        status: "completed",
       };
 
       if (existingRecord) {
@@ -3552,7 +3534,9 @@ function syncModuleCompletionFormOptions() {
   section.userId.innerHTML = renderModuleCompletionUserOptions(selectedUserId);
   section.moduleId.innerHTML = renderModuleCompletionModuleOptions(selectedModuleId);
   section.sessionId.innerHTML = renderModuleCompletionSessionOptions(selectedSessionId);
-  section.status.innerHTML = renderModuleCompletionStatusOptions(section.status.value || "completed");
+  if (section.status) {
+    section.status.value = "completed";
+  }
 }
 
 function syncSessionTemplateOptions(selectedId = null) {
@@ -3846,7 +3830,6 @@ function renderAdminUserModuleEditor(moduleItem, completionRecord) {
   const isChecked = Boolean(completionRecord);
   const moduleId = String(moduleItem.id);
   const dateValue = toNativeDateInputValue(completionRecord?.completionDate ?? "");
-  const statusValue = completionRecord?.status ?? "completed";
 
   return `
     <tr class="admin-user-module-row ${isChecked ? "is-checked" : ""}">
@@ -3886,13 +3869,7 @@ function renderAdminUserModuleEditor(moduleItem, completionRecord) {
         />
       </td>
       <td>
-        <select
-          id="user-module-status-${escapeHtml(moduleId)}"
-          data-module-status="${escapeHtml(moduleId)}"
-          ${isChecked ? "" : "disabled"}
-        >
-          ${renderModuleCompletionStatusOptions(statusValue)}
-        </select>
+        <span class="subtle-badge">${isChecked ? "Validé" : "Non validé"}</span>
       </td>
     </tr>
   `;
@@ -4649,15 +4626,11 @@ function renderRegistrationStatusOptions(currentStatus) {
 }
 
 function renderModuleCompletionStatusOptions(currentStatus) {
-  const statuses = moduleCompletionStatusOptions.includes(currentStatus)
-    ? moduleCompletionStatusOptions
-    : [...moduleCompletionStatusOptions, currentStatus].filter(Boolean);
-
-  return statuses
+  return moduleCompletionStatusOptions
     .map(
       (status) => `
         <option value="${escapeHtml(status)}" ${status === currentStatus ? "selected" : ""}>
-          ${escapeHtml(status)}
+          ${escapeHtml(formatModuleCompletionStatus(status))}
         </option>
       `,
     )
@@ -5196,7 +5169,7 @@ async function handleModuleCompletionFormSubmit(event) {
     session_id: normalizeOptionalString(section.sessionId?.value),
     validated_by: adminSessionUser.id,
     completion_date: normalizeDateEntry(section.completionDate?.value),
-    status: section.status?.value ?? "completed",
+    status: "completed",
     notes: normalizeOptionalString(section.notes?.value),
   };
 
@@ -5205,11 +5178,11 @@ async function handleModuleCompletionFormSubmit(event) {
     return;
   }
 
-  if (!payload.user_id || !payload.module_id || !payload.completion_date || !payload.status) {
+  if (!payload.user_id || !payload.module_id || !payload.completion_date) {
     setAdminMessage(
       section.formMessage,
       "error",
-      "Renseignez l’utilisateur, le module, la date et le statut.",
+      "Renseignez l’utilisateur, le module et la date.",
     );
     return;
   }
@@ -5392,8 +5365,9 @@ function populateModuleCompletionForm(recordId) {
   section.moduleId.value = String(record.moduleId ?? "");
   section.sessionId.value = String(record.sessionId ?? "");
   section.completionDate.value = toNativeDateInputValue(record.completionDate || "");
-  section.status.innerHTML = renderModuleCompletionStatusOptions(record.status);
-  section.status.value = record.status;
+  if (section.status) {
+    section.status.value = "completed";
+  }
   section.notes.value = record.notes;
   updateAdminFormMode("completions-admin", adminFormLabels.completion);
   setAdminMessage(section.formMessage, "success", "Mode modification activé.");
@@ -5492,7 +5466,6 @@ function resetModuleCompletionForm({ keepMessage = false } = {}) {
   }
 
   if (section.status) {
-    section.status.innerHTML = renderModuleCompletionStatusOptions("completed");
     section.status.value = "completed";
   }
 
@@ -6981,14 +6954,11 @@ function downloadTextFile(filename, contentText) {
 }
 
 function formatModuleCompletionStatus(status) {
-  const labelMap = {
-    completed: "Complété",
-    attended: "Présent",
-    partial: "Partiel",
-    failed: "Non validé",
-  };
+  if (!status || status === "completed") {
+    return "Validé";
+  }
 
-  return labelMap[status] ?? status ?? "Statut inconnu";
+  return "Validé";
 }
 
 function buildGoogleCalendarLink({ title, googleStart, googleEnd, notes }) {
