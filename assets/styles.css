@@ -459,6 +459,11 @@ p {
   align-content: start;
 }
 
+.session-card.is-archived {
+  background: rgba(243, 227, 208, 0.34);
+  border-color: rgba(31, 35, 37, 0.08);
+}
+
 .session-card-compact {
   gap: 0.9rem;
 }
@@ -723,6 +728,12 @@ p {
 
 .admin-table-card {
   background: var(--white);
+}
+
+.admin-event-groups,
+.admin-event-group {
+  display: grid;
+  gap: 1rem;
 }
 
 .admin-row-actions {

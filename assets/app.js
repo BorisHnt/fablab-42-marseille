@@ -413,12 +413,30 @@ function renderSessionsPage() {
         ${sectionHeading(
           "Cours",
           "Sessions de cours",
-          "L’interface d’inscription est déjà en place pour rendre le futur parcours crédible et immédiatement compréhensible.",
+          "Les inscriptions restent ouvertes jusqu’à 2h avant le début. Les sessions terminées basculent ensuite dans une archive visible.",
         )}
       </section>
 
-      <section class="card-grid two-columns" id="sessions-grid">
-        ${renderSessionsLoadingState()}
+      <section class="section-card animate-rise">
+        ${sectionHeading(
+          "À venir",
+          "Sessions ouvertes ou planifiées",
+          "Consultez les prochaines dates, les places encore disponibles et l’état réel des inscriptions.",
+        )}
+        <div class="card-grid two-columns" id="sessions-grid">
+          ${renderSessionsLoadingState()}
+        </div>
+      </section>
+
+      <section class="section-card section-card-soft animate-rise">
+        ${sectionHeading(
+          "Archives",
+          "Sessions terminées",
+          "Une trace simple des sessions déjà passées, pour garder un historique lisible du parcours du fablab.",
+        )}
+        <div class="card-grid two-columns" id="sessions-archive-grid">
+          ${renderSessionsArchiveLoadingState()}
+        </div>
       </section>
     </div>
   `;
@@ -1570,6 +1588,7 @@ function normalizeEvent(event) {
     startTime: startTime ?? "",
     description: event.short_description ?? event.description ?? "",
     meta,
+    isArchived: isEventArchived(event),
   };
 }
 
@@ -1590,10 +1609,11 @@ function renderSessionCard(session, registrationIndex = new Map()) {
   const normalizedSession = normalizeSession(session);
 
   return `
-    <article class="info-card session-card animate-rise">
+    <article class="info-card session-card ${normalizedSession.isArchived ? "is-archived" : ""} animate-rise">
       <div class="session-head">
         <span class="category-badge">${formatDate(normalizedSession.date)}</span>
         <span class="subtle-badge">${normalizedSession.level}</span>
+        ${normalizedSession.isArchived ? `<span class="subtle-badge">Archive</span>` : ""}
       </div>
       <h3>${normalizedSession.title}</h3>
       <div class="session-meta">
@@ -1631,7 +1651,48 @@ function renderPublicSessionCta(session, { registrationIndex = new Map(), button
   const ghostButtonClassName = buttonBlock ? "button button-ghost button-block" : "button button-ghost";
   const dangerButtonClassName = buttonBlock ? "button button-danger button-block" : "button button-danger";
 
+  if (session.isArchived) {
+    return `
+      <div class="session-cta">
+        ${
+          registrationRecord
+            ? `<a class="${ghostButtonClassName}" href="${routeMap.account}">Voir dans mon espace</a>`
+            : `<button class="${ghostButtonClassName}" type="button" disabled>Session terminée</button>`
+        }
+        <span class="session-availability">Cette session est terminée et fait désormais partie des archives.</span>
+      </div>
+    `;
+  }
+
   if (!registrationRecord) {
+    if (session.isFull) {
+      return `
+        <div class="session-cta">
+          <button class="${ghostButtonClassName}" type="button" disabled>
+            Session complète
+          </button>
+          <span class="session-availability">Toutes les places disponibles ont déjà été réservées.</span>
+        </div>
+      `;
+    }
+
+    if (session.isRegistrationClosed) {
+      return `
+        <div class="session-cta">
+          <button class="${ghostButtonClassName}" type="button" disabled>
+            Inscriptions closes
+          </button>
+          <span class="session-availability">
+            ${
+              session.registrationCutoffLabel
+                ? `Les inscriptions étaient ouvertes jusqu’au ${session.registrationCutoffLabel}.`
+                : "Les inscriptions ferment 2h avant le début de la session."
+            }
+          </span>
+        </div>
+      `;
+    }
+
     return `
       <div class="session-cta">
         <a class="${buttonClassName}" href="${registrationLink(session.id)}">
@@ -1778,14 +1839,26 @@ function normalizeSession(session) {
     seatLabel = `${seatsTotal} places`;
   }
 
+  const date = session.session_date ?? session.date;
+  const reference = {
+    date,
+    startTime,
+    endTime,
+  };
+  const isArchived = isSessionArchived(reference);
+  const registrationCutoff = getSessionRegistrationCutoffDateTime(reference);
+  const isRegistrationClosed = isSessionRegistrationClosed(reference);
+  const isFull = seatsRemaining !== null && seatsRemaining <= 0;
+
   return {
     id:
       session.id ??
       session.session_id ??
       `${session.title ?? "session"}-${session.session_date ?? session.date ?? "na"}`,
     title: session.title ?? "Session",
-    date: session.session_date ?? session.date,
+    date,
     startTime: startTime ?? "",
+    endTime: endTime ?? "",
     timeRange: formatTimeRange(startTime, endTime),
     level: session.level ?? "Tous niveaux",
     seatsRemaining,
@@ -1793,6 +1866,10 @@ function normalizeSession(session) {
     seatLabel,
     modules: modulesList,
     notes: session.notes ?? "",
+    isArchived,
+    isRegistrationClosed,
+    isFull,
+    registrationCutoffLabel: registrationCutoff ? formatSafeDateTime(registrationCutoff) : "",
   };
 }
 
@@ -3126,7 +3203,45 @@ function renderEventsAdminList(items) {
     return renderAdminEmptyState("Aucun événement n’est publié pour le moment.");
   }
 
-  const rows = items
+  const upcomingItems = items.filter((item) => !isEventArchived(item));
+  const archivedItems = items.filter((item) => isEventArchived(item));
+
+  return `
+    <div class="admin-event-groups">
+      <div class="admin-event-group">
+        <div class="admin-panel-head admin-panel-head-start">
+          <h3>À venir</h3>
+          <span class="subtle-badge">${formatAdminCount(upcomingItems.length, "événement", "événements")}</span>
+        </div>
+        ${
+          upcomingItems.length
+            ? renderAdminTable(
+                ["Titre", "Date", "Lieu", "Image", "Actions"],
+                renderEventsAdminRows(upcomingItems),
+              )
+            : renderAdminEmptyState("Aucun événement à venir pour le moment.")
+        }
+      </div>
+      <div class="admin-event-group">
+        <div class="admin-panel-head admin-panel-head-start">
+          <h3>Archives</h3>
+          <span class="subtle-badge">${formatAdminCount(archivedItems.length, "événement", "événements")}</span>
+        </div>
+        ${
+          archivedItems.length
+            ? renderAdminTable(
+                ["Titre", "Date", "Lieu", "Image", "Actions"],
+                renderEventsAdminRows(archivedItems),
+              )
+            : renderAdminEmptyState("Aucun événement archivé pour le moment.")
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderEventsAdminRows(items) {
+  return items
     .map(
       (item) => `
         <tr>
@@ -3153,11 +3268,6 @@ function renderEventsAdminList(items) {
       `,
     )
     .join("");
-
-  return renderAdminTable(
-    ["Titre", "Date", "Lieu", "Image", "Actions"],
-    rows,
-  );
 }
 
 function renderUsersAdminList(items, searchValue = "") {
@@ -5128,6 +5238,84 @@ function formatTime(timeValue) {
   return `${hours}:${minutes}`;
 }
 
+function parseLocalDateTime(dateValue, timeValue = "00:00") {
+  const normalizedDate = String(dateValue ?? "").trim();
+  const dateMatch = normalizedDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!dateMatch) {
+    return null;
+  }
+
+  const [, year, month, day] = dateMatch;
+  const [hours = "00", minutes = "00"] = String(timeValue ?? "00:00").split(":");
+  const parsed = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hours),
+    Number(minutes),
+    0,
+    0,
+  );
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getSessionStartDateTime(session) {
+  const dateValue = session?.session_date ?? session?.date ?? "";
+  const startTime = session?.start_time ?? session?.startTime ?? "";
+
+  if (!dateValue || !startTime) {
+    return null;
+  }
+
+  return parseLocalDateTime(dateValue, startTime);
+}
+
+function getSessionEndDateTime(session) {
+  const dateValue = session?.session_date ?? session?.date ?? "";
+  const endTime =
+    session?.end_time ?? session?.endTime ?? session?.start_time ?? session?.startTime ?? "23:59";
+
+  if (!dateValue) {
+    return null;
+  }
+
+  return parseLocalDateTime(dateValue, endTime);
+}
+
+function getSessionRegistrationCutoffDateTime(session) {
+  const startDateTime = getSessionStartDateTime(session);
+
+  if (!startDateTime) {
+    return null;
+  }
+
+  return new Date(startDateTime.getTime() - 2 * 60 * 60 * 1000);
+}
+
+function isSessionArchived(session, referenceDate = new Date()) {
+  const endDateTime = getSessionEndDateTime(session);
+  return endDateTime ? endDateTime.getTime() < referenceDate.getTime() : false;
+}
+
+function isSessionRegistrationClosed(session, referenceDate = new Date()) {
+  if (isSessionArchived(session, referenceDate)) {
+    return true;
+  }
+
+  const cutoffDateTime = getSessionRegistrationCutoffDateTime(session);
+  return cutoffDateTime ? referenceDate.getTime() >= cutoffDateTime.getTime() : false;
+}
+
+function isEventArchived(event, referenceDate = new Date()) {
+  const dateValue = event?.event_date ?? event?.date ?? "";
+  const endTime = event?.end_time ?? event?.endTime ?? "23:59";
+  const eventEndDateTime = parseLocalDateTime(dateValue, endTime);
+
+  return eventEndDateTime ? eventEndDateTime.getTime() < referenceDate.getTime() : false;
+}
+
 function renderEventsLoadingState(label = "Chargement", text = "Les événements planifiés sont en cours de chargement depuis Supabase.") {
   return `
     <article class="info-card event-card animate-rise">
@@ -5196,6 +5384,19 @@ function renderSessionsLoadingState() {
   `;
 }
 
+function renderSessionsArchiveLoadingState() {
+  return `
+    <article class="info-card session-card is-archived animate-rise">
+      <div class="session-head">
+        <span class="category-badge">Archive</span>
+        <span class="subtle-badge">Sessions</span>
+      </div>
+      <h3>Récupération des sessions passées</h3>
+      <p>Les sessions déjà terminées sont en cours de chargement depuis Supabase.</p>
+    </article>
+  `;
+}
+
 function renderSessionsEmptyState() {
   return `
     <article class="info-card session-card animate-rise">
@@ -5218,6 +5419,19 @@ function renderSessionsErrorState() {
       </div>
       <h3>Impossible de charger les sessions</h3>
       <p>Les sessions de cours ne peuvent pas être récupérées pour le moment. Réessayez plus tard.</p>
+    </article>
+  `;
+}
+
+function renderSessionsArchiveEmptyState() {
+  return `
+    <article class="info-card session-card is-archived animate-rise">
+      <div class="session-head">
+        <span class="category-badge">Archive</span>
+        <span class="subtle-badge">Sessions</span>
+      </div>
+      <h3>Aucune session archivée pour le moment</h3>
+      <p>Les sessions terminées apparaîtront ici automatiquement une fois leur horaire de fin dépassé.</p>
     </article>
   `;
 }
@@ -5652,7 +5866,15 @@ function renderModuleSessionItem(session, registrationIndex = new Map()) {
       </div>
       <div class="schedule-item-actions">
         ${
-          registrationRecord
+          session.isArchived
+            ? `
+              ${
+                registrationRecord
+                  ? `<a class="button button-ghost button-small" href="${routeMap.account}">Voir dans mon espace</a>`
+                  : `<button class="button button-ghost button-small" type="button" disabled>Session terminée</button>`
+              }
+            `
+            : registrationRecord
             ? `
               <a class="button button-ghost button-small" href="${routeMap.account}">Déjà inscrit</a>
               <button
@@ -5665,11 +5887,33 @@ function renderModuleSessionItem(session, registrationIndex = new Map()) {
                 Se désinscrire
               </button>
             `
+            : session.isFull
+              ? `
+                <button class="button button-ghost button-small" type="button" disabled>
+                  Session complète
+                </button>
+              `
+              : session.isRegistrationClosed
+                ? `
+                  <button class="button button-ghost button-small" type="button" disabled>
+                    Inscriptions closes
+                  </button>
+                `
             : `
               <a class="button button-primary button-small" href="${registrationLink(session.id)}">
                 S’inscrire
               </a>
             `
+        }
+        ${
+          !registrationRecord && session.isRegistrationClosed && !session.isArchived
+            ? `<span class="session-availability">Clôture 2h avant le début.</span>`
+            : ""
+        }
+        ${
+          !registrationRecord && session.isArchived
+            ? `<span class="session-availability">Cette session fait désormais partie des archives.</span>`
+            : ""
         }
         <p class="session-action-feedback" data-session-feedback="${escapeHtml(session.id)}" aria-live="polite"></p>
       </div>
@@ -5851,12 +6095,14 @@ async function hydrateEventsPage() {
     return;
   }
 
-  if (!data || data.length === 0) {
+  const upcomingEvents = (data ?? []).filter((item) => !isEventArchived(item));
+
+  if (!upcomingEvents.length) {
     eventsGrid.innerHTML = renderEventsEmptyState();
     return;
   }
 
-  eventsGrid.innerHTML = data.map(renderEventCard).join("");
+  eventsGrid.innerHTML = upcomingEvents.map(renderEventCard).join("");
 }
 
 async function hydrateHomePageData() {
@@ -5878,14 +6124,12 @@ async function hydrateHomePageData() {
   const [
     eventsResult,
     modulesResult,
-    eventsCountResult,
     sessionsResult,
     registrationState,
   ] =
     await Promise.all([
-      fetchEvents(3),
+      fetchEvents(),
       fetchPublicModules(),
-      fetchPublishedEventsCount(),
       fetchSessions(),
       fetchCurrentUserActiveRegistrationIndex(),
     ]);
@@ -5894,13 +6138,15 @@ async function hydrateHomePageData() {
   console.log("home events error:", eventsResult.error);
   console.log("home modules data:", modulesResult.data);
   console.log("home modules error:", modulesResult.error);
-  console.log("home events count:", eventsCountResult.count);
-  console.log("home events count error:", eventsCountResult.error);
   console.log("home sessions data:", sessionsResult.data);
   console.log("home sessions error:", sessionsResult.error);
 
-  const homeEvents = eventsResult.error ? [] : (eventsResult.data ?? []);
-  const homeSessions = sessionsResult.error ? [] : (sessionsResult.data ?? []);
+  const homeEvents = eventsResult.error
+    ? []
+    : (eventsResult.data ?? []).filter((item) => !isEventArchived(item));
+  const homeSessions = sessionsResult.error
+    ? []
+    : (sessionsResult.data ?? []).map(normalizeSession).filter((item) => !item.isArchived);
   const homeAgendaMarkup = renderHomeAgendaCards(
     homeEvents,
     homeSessions,
@@ -5926,17 +6172,14 @@ async function hydrateHomePageData() {
     ? []
     : (modulesResult.data ?? []).map(normalizePublicModuleRecord);
 
-  const upcomingSessions = homeSessions.map(normalizeSession).slice(0, 2);
+  const upcomingSessions = homeSessions.slice(0, 2);
 
   heroSessionsNode.innerHTML = renderHomeHeroSessions(upcomingSessions);
 
   const stats = {
     moduleCount: publicModules.length,
     sessionCount: homeSessions.length,
-    eventCount:
-      eventsCountResult.error || eventsCountResult.count === null
-        ? eventsResult.data?.length ?? 0
-        : eventsCountResult.count,
+    eventCount: homeEvents.length,
   };
 
   highlightsGrid.innerHTML = renderHomeFeatureItems(stats);
@@ -5948,8 +6191,9 @@ async function hydrateSessionsPage() {
   }
 
   const sessionsGrid = document.getElementById("sessions-grid");
+  const sessionsArchiveGrid = document.getElementById("sessions-archive-grid");
 
-  if (!sessionsGrid) {
+  if (!sessionsGrid || !sessionsArchiveGrid) {
     return;
   }
 
@@ -5965,17 +6209,31 @@ async function hydrateSessionsPage() {
 
   if (error) {
     sessionsGrid.innerHTML = renderSessionsErrorState();
+    sessionsArchiveGrid.innerHTML = renderSessionsErrorState();
     return;
   }
 
-  if (!data || data.length === 0) {
+  const normalizedSessions = (data ?? []).map(normalizeSession);
+  const upcomingSessions = normalizedSessions.filter((item) => !item.isArchived);
+  const archivedSessions = normalizedSessions.filter((item) => item.isArchived);
+
+  if (!normalizedSessions.length) {
     sessionsGrid.innerHTML = renderSessionsEmptyState();
+    sessionsArchiveGrid.innerHTML = renderSessionsArchiveEmptyState();
     return;
   }
 
-  sessionsGrid.innerHTML = data
-    .map((item) => renderSessionCard(item, registrationState.registrationIndex))
-    .join("");
+  sessionsGrid.innerHTML = upcomingSessions.length
+    ? upcomingSessions
+        .map((item) => renderSessionCard(item, registrationState.registrationIndex))
+        .join("")
+    : renderSessionsEmptyState();
+
+  sessionsArchiveGrid.innerHTML = archivedSessions.length
+    ? archivedSessions
+        .map((item) => renderSessionCard(item, registrationState.registrationIndex))
+        .join("")
+    : renderSessionsArchiveEmptyState();
 }
 
 async function hydrateAuthNavigation() {
@@ -6114,7 +6372,11 @@ async function hydrateRegistrationPage() {
 
     const allSessions = (data ?? []).map(normalizeSession);
     availableSessions = allSessions.filter(
-      (session) => session.seatsRemaining === null || session.seatsRemaining > 0,
+      (session) =>
+        !session.isArchived &&
+        !session.isRegistrationClosed &&
+        !session.isFull &&
+        (session.seatsRemaining === null || session.seatsRemaining > 0),
     );
 
     if (!availableSessions.length) {
@@ -6273,13 +6535,12 @@ async function hydrateModuleDetailSessions() {
     .map(normalizeSession)
     .filter(
       (session) =>
+        !session.isArchived &&
         session.modules.some(
           (moduleName) =>
             String(moduleName).trim().toLowerCase() ===
             String(moduleTitle).trim().toLowerCase(),
-        ) &&
-        ((session.seatsRemaining === null || session.seatsRemaining > 0) ||
-          registrationState.registrationIndex.has(String(session.id))),
+        ),
     );
 
   if (!matchingSessions.length) {
