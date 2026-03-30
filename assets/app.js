@@ -998,7 +998,7 @@ function renderAdminSubnav() {
         ${renderAdminSubnavButton("utilisateurs", "Utilisateurs", "admin-view-count-utilisateurs")}
         ${renderAdminSubnavButton("catalogue", "Catalogue", "admin-view-count-catalogue")}
         ${renderAdminSubnavButton("logistique", "Logistique", "admin-view-count-logistique")}
-        ${renderAdminSubnavButton("archives", "Archives", "admin-view-count-archives")}
+        ${renderAdminSubnavButton("archives", "Archives")}
       </div>
     </section>
   `;
@@ -1012,7 +1012,11 @@ function renderAdminSubnavButton(viewKey, label, countId) {
       type="button"
     >
       <span>${label}</span>
-      <span class="subtle-badge" id="${countId}">0</span>
+      ${
+        countId
+          ? `<span class="subtle-badge" id="${countId}">0</span>`
+          : ""
+      }
     </button>
   `;
 }
@@ -4089,7 +4093,9 @@ function renderAdminSessionCard(item) {
 
 function renderSessionAdminRegistrationsBlock(sessionId) {
   const relatedRegistrations = adminState.registrations.filter(
-    (item) => String(item.sessionId) === String(sessionId),
+    (item) =>
+      String(item.sessionId) === String(sessionId) &&
+      !isArchivedRegistration(item),
   );
 
   if (!relatedRegistrations.length) {
@@ -4318,8 +4324,18 @@ function renderDeletionRequestAdminCard(item) {
   `;
 }
 
-function renderAdminArchivesList(archivedSessions, archivedEvents, handledDeletionRequests) {
-  if (!archivedSessions.length && !archivedEvents.length && !handledDeletionRequests.length) {
+function renderAdminArchivesList(
+  archivedSessions,
+  archivedEvents,
+  handledDeletionRequests,
+  archivedRegistrations,
+) {
+  if (
+    !archivedSessions.length &&
+    !archivedEvents.length &&
+    !handledDeletionRequests.length &&
+    !archivedRegistrations.length
+  ) {
     return renderAdminEmptyState("Aucune archive à afficher pour le moment.");
   }
 
@@ -4457,6 +4473,46 @@ function renderAdminArchivesList(archivedSessions, archivedEvents, handledDeleti
                 </div>
               `
             : renderAdminEmptyState("Aucune demande gérée à archiver pour le moment.")
+        }
+      </div>
+      <div class="admin-event-group">
+        <div class="admin-panel-head admin-panel-head-start">
+          <h3>Inscriptions annulées</h3>
+          <span class="subtle-badge">${formatAdminCount(
+            archivedRegistrations.length,
+            "inscription",
+            "inscriptions",
+          )}</span>
+        </div>
+        ${
+          archivedRegistrations.length
+            ? renderAdminTable(
+                ["Participant", "Session", "Date de demande", "Statut"],
+                archivedRegistrations
+                  .map(
+                    (item) => `
+                      <tr>
+                        <td>
+                          <strong>${escapeHtml(item.firstName)} ${escapeHtml(item.lastName)}</strong>
+                          <div class="admin-cell-meta">${escapeHtml(item.email)}</div>
+                          ${
+                            item.login42
+                              ? `<div class="admin-cell-meta">Login 42 : ${escapeHtml(item.login42)}</div>`
+                              : ""
+                          }
+                        </td>
+                        <td>
+                          <strong>${escapeHtml(item.sessionTitle)}</strong>
+                          <div class="admin-cell-meta">${escapeHtml(formatSafeDate(item.sessionDate))}</div>
+                        </td>
+                        <td>${escapeHtml(item.createdLabel)}</td>
+                        <td><span class="subtle-badge">${escapeHtml(formatRegistrationStatus(item.status))}</span></td>
+                      </tr>
+                    `,
+                  )
+                  .join(""),
+              )
+            : renderAdminEmptyState("Aucune inscription annulée à archiver pour le moment.")
         }
       </div>
     </div>
@@ -4650,7 +4706,7 @@ function renderRegistrationStatusOptions(currentStatus) {
     .map(
       (status) => `
         <option value="${escapeHtml(status)}" ${status === currentStatus ? "selected" : ""}>
-          ${escapeHtml(status)}
+          ${escapeHtml(formatRegistrationStatus(status))}
         </option>
       `,
     )
@@ -4731,6 +4787,7 @@ function renderAdminViewCounts() {
   const currentEventsCount = adminState.events.filter((item) => !isEventArchived(item)).length;
   const archivedSessionsCount = adminState.sessions.filter((item) => isSessionArchived(item)).length;
   const archivedEventsCount = adminState.events.filter((item) => isEventArchived(item)).length;
+  const archivedRegistrationsCount = adminState.registrations.filter(isArchivedRegistration).length;
   const handledDeletionRequestsCount = adminState.deletionRequests.filter(
     (item) => item.status !== "pending",
   ).length;
@@ -4761,7 +4818,10 @@ function renderAdminViewCounts() {
 
   if (views.archivesCount) {
     views.archivesCount.textContent = String(
-      archivedSessionsCount + archivedEventsCount + handledDeletionRequestsCount,
+      archivedSessionsCount +
+        archivedEventsCount +
+        archivedRegistrationsCount +
+        handledDeletionRequestsCount,
     );
   }
 }
@@ -4775,12 +4835,16 @@ function refreshAdminArchivesSection() {
 
   const archivedSessions = adminState.sessions.filter((item) => isSessionArchived(item));
   const archivedEvents = adminState.events.filter((item) => isEventArchived(item));
+  const archivedRegistrations = adminState.registrations.filter(isArchivedRegistration);
   const handledDeletionRequests = adminState.deletionRequests.filter(
     (item) => item.status !== "pending",
   );
 
   section.count.textContent = formatAdminCount(
-    archivedSessions.length + archivedEvents.length + handledDeletionRequests.length,
+    archivedSessions.length +
+      archivedEvents.length +
+      archivedRegistrations.length +
+      handledDeletionRequests.length,
     "archive",
     "archives",
   );
@@ -4788,6 +4852,7 @@ function refreshAdminArchivesSection() {
     archivedSessions,
     archivedEvents,
     handledDeletionRequests,
+    archivedRegistrations,
   );
 }
 
@@ -6845,7 +6910,7 @@ function normalizeCompletedModuleRecord(row) {
     sessionDate: row?.session_date ?? row?.date ?? "",
     completionDate: row?.completion_date ?? "",
     notes: row?.notes ?? "",
-    status: formatRegistrationStatus(row?.status ?? row?.registration_status ?? ""),
+    status: formatModuleCompletionStatus(row?.status ?? row?.registration_status ?? ""),
   };
 }
 
@@ -6880,11 +6945,9 @@ function normalizeDeletionRequestRecord(row) {
 
 function formatRegistrationStatus(status) {
   const labelMap = {
-    registered: "Inscription confirmée",
+    registered: "Demande reçue",
     cancelled: "Inscription annulée",
-    attended: "Participé",
-    completed: "Complété",
-    confirmed: "Confirmé",
+    confirmed: "Inscription confirmée",
     waitlisted: "Liste d’attente",
   };
 
@@ -6894,6 +6957,10 @@ function formatRegistrationStatus(status) {
 function isActionableRegistrationRequest(registration) {
   const status = registration?.status ?? "";
   return status === "registered" || status === "waitlisted";
+}
+
+function isArchivedRegistration(registration) {
+  return (registration?.status ?? "") === "cancelled";
 }
 
 function formatDeletionRequestStatus(status) {
@@ -6956,7 +7023,7 @@ function buildUserPersonalDataExportText({
                 `   Date de validation : ${
                   item.completion_date ? formatSafeDate(item.completion_date) : "Non renseignée"
                 }`,
-                `   Statut : ${formatRegistrationStatus(
+                `   Statut : ${formatModuleCompletionStatus(
                   item.status ?? item.registration_status ?? "",
                 )}`,
                 `   Session liée : ${item.session_title ?? "Aucune"}`,
