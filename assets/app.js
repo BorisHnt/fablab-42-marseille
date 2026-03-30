@@ -1203,6 +1203,25 @@ function renderSessionsAdminForm() {
   return `
     <form class="signup-form admin-form" id="sessions-admin-form">
       <input id="sessions-admin-id" name="id" type="hidden" />
+      <div class="admin-template-picker">
+        <label for="sessions-admin-template">
+          Copier depuis une session existante
+          <select id="sessions-admin-template" name="session_template_id">
+            <option value="">Chargement des sessions existantes...</option>
+          </select>
+        </label>
+        <button
+          class="button button-ghost"
+          id="sessions-admin-template-apply"
+          type="button"
+        >
+          Charger
+        </button>
+      </div>
+      <p class="admin-helper-text">
+        Préremplit le titre, les horaires, les places, les modules et les notes à partir d’une
+        session existante.
+      </p>
       <label for="sessions-admin-title">
         Titre de session
         <input id="sessions-admin-title" name="title" type="text" required />
@@ -2069,6 +2088,8 @@ function cacheAdminDom() {
       level: document.getElementById("sessions-admin-level"),
       seatsTotal: document.getElementById("sessions-admin-seats-total"),
       notes: document.getElementById("sessions-admin-notes"),
+      template: document.getElementById("sessions-admin-template"),
+      templateApply: document.getElementById("sessions-admin-template-apply"),
       moduleOptions: document.getElementById("sessions-admin-module-options"),
       submit: document.getElementById("sessions-admin-submit"),
       cancel: document.getElementById("sessions-admin-cancel-edit"),
@@ -2352,6 +2373,20 @@ function bindSessionsAdminControls() {
 
   section.form.addEventListener("submit", handleSessionsAdminFormSubmit);
   section.cancel?.addEventListener("click", () => resetSessionsAdminForm());
+  section.templateApply?.addEventListener("click", () => {
+    const templateId = section.template?.value ?? "";
+
+    if (!templateId) {
+      setAdminMessage(
+        section.formMessage,
+        "error",
+        "Sélectionnez d’abord une session existante à utiliser comme modèle.",
+      );
+      return;
+    }
+
+    populateSessionTemplate(templateId);
+  });
 
   section.list.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-action][data-id]");
@@ -2728,6 +2763,7 @@ async function refreshSessionsAdminSection() {
     "sessions",
   );
   section.list.innerHTML = renderSessionsAdminList(adminState.sessions);
+  syncSessionTemplateOptions();
   syncModuleCompletionFormOptions();
   renderAdminMetrics();
 }
@@ -3116,6 +3152,22 @@ function syncModuleCompletionFormOptions() {
   section.moduleId.innerHTML = renderModuleCompletionModuleOptions(selectedModuleId);
   section.sessionId.innerHTML = renderModuleCompletionSessionOptions(selectedSessionId);
   section.status.innerHTML = renderModuleCompletionStatusOptions(section.status.value || "completed");
+}
+
+function syncSessionTemplateOptions(selectedId = null) {
+  const section = adminDom?.sessions;
+
+  if (!section?.template || !section?.templateApply) {
+    return;
+  }
+
+  const preservedSelection =
+    selectedId !== null ? String(selectedId ?? "") : String(section.template.value ?? "");
+
+  section.template.innerHTML = renderSessionTemplateOptions(preservedSelection);
+  section.template.value = preservedSelection;
+  section.template.disabled = !adminState.sessions.length;
+  section.templateApply.disabled = !adminState.sessions.length;
 }
 
 function renderInventoryAdminList(items) {
@@ -3882,6 +3934,31 @@ function renderSessionModuleOptions(selectedIds = []) {
     .join("");
 }
 
+function renderSessionTemplateOptions(selectedId = "") {
+  const selectedValue = String(selectedId ?? "");
+
+  if (!adminState.sessions.length) {
+    return `<option value="">Aucune session existante à dupliquer</option>`;
+  }
+
+  return [
+    `<option value="">Choisir une session existante</option>`,
+    ...adminState.sessions.map(
+      (sessionItem) => `
+        <option value="${escapeHtml(sessionItem.id)}" ${
+          String(sessionItem.id) === selectedValue ? "selected" : ""
+        }>
+          ${escapeHtml(
+            [sessionItem.title, formatSafeDate(sessionItem.sessionDate), sessionItem.timeRange]
+              .filter(Boolean)
+              .join(" · "),
+          )}
+        </option>
+      `,
+    ),
+  ].join("");
+}
+
 function renderModuleCompletionUserOptions(selectedUserId = "") {
   const selectedValue = String(selectedUserId ?? "");
 
@@ -4521,9 +4598,40 @@ function populateSessionsAdminForm(recordId) {
   section.level.value = record.level;
   section.seatsTotal.value = record.seatsTotal ?? "";
   section.notes.value = record.notes;
+  if (section.template) {
+    section.template.value = "";
+  }
   section.moduleOptions.innerHTML = renderSessionModuleOptions(record.moduleIds);
   updateAdminFormMode("sessions-admin", adminFormLabels.session);
   setAdminMessage(section.formMessage, "success", "Mode modification activé.");
+}
+
+function populateSessionTemplate(recordId) {
+  const section = adminDom?.sessions;
+  const record = findAdminRecordById(adminState.sessions, recordId);
+
+  if (!section || !record) {
+    return;
+  }
+
+  section.id.value = "";
+  section.title.value = record.title;
+  section.date.value = record.sessionDate;
+  section.startTime.value = record.startTime;
+  section.endTime.value = record.endTime;
+  section.level.value = record.level;
+  section.seatsTotal.value = record.seatsTotal ?? "";
+  section.notes.value = record.notes;
+  section.moduleOptions.innerHTML = renderSessionModuleOptions(record.moduleIds);
+  if (section.template) {
+    section.template.value = String(record.id);
+  }
+  updateAdminFormMode("sessions-admin", adminFormLabels.session);
+  setAdminMessage(
+    section.formMessage,
+    "success",
+    "Session chargée comme modèle. Ajustez la date ou les détails si nécessaire avant de créer la nouvelle session.",
+  );
 }
 
 function populateModuleCompletionForm(recordId) {
@@ -4615,6 +4723,7 @@ function resetSessionsAdminForm({ keepMessage = false } = {}) {
 
   section.form.reset();
   section.id.value = "";
+  syncSessionTemplateOptions("");
   section.moduleOptions.innerHTML = renderSessionModuleOptions([]);
   updateAdminFormMode("sessions-admin", adminFormLabels.session);
 
