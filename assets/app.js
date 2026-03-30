@@ -9,7 +9,6 @@ const content = document.getElementById("page-content");
 const header = document.getElementById("site-header");
 const footer = document.getElementById("site-footer");
 const params = new URLSearchParams(window.location.search);
-window.supabase = supabase;
 
 const routeMap = {
   home: "index.html",
@@ -818,7 +817,7 @@ function renderAdminPage(userEmail = "") {
         ${sectionHeading(
           "Admin",
           "Interface d’administration du fablab",
-          "Une base utile pour gérer le matériel, les besoins, les événements, les sessions et les inscriptions depuis Supabase.",
+          "Une base utile pour gérer le matériel, les besoins, les événements, les sessions et les inscriptions du fablab.",
         )}
         <div class="section-action">
           <span class="subtle-badge admin-user-badge">${userEmail}</span>
@@ -1203,7 +1202,14 @@ function renderEventsAdminForm() {
       <div class="admin-field-grid">
         <label for="events-admin-date">
           Date
-          <input id="events-admin-date" name="event_date" type="date" required />
+          <input
+            id="events-admin-date"
+            name="event_date"
+            type="text"
+            inputmode="numeric"
+            placeholder="31/03/2026"
+            required
+          />
         </label>
         <label for="events-admin-location">
           Lieu
@@ -1213,11 +1219,23 @@ function renderEventsAdminForm() {
       <div class="admin-field-grid">
         <label for="events-admin-start-time">
           Heure de début
-          <input id="events-admin-start-time" name="start_time" type="time" />
+          <input
+            id="events-admin-start-time"
+            name="start_time"
+            type="text"
+            inputmode="numeric"
+            placeholder="18:00"
+          />
         </label>
         <label for="events-admin-end-time">
           Heure de fin
-          <input id="events-admin-end-time" name="end_time" type="time" />
+          <input
+            id="events-admin-end-time"
+            name="end_time"
+            type="text"
+            inputmode="numeric"
+            placeholder="19:30"
+          />
         </label>
       </div>
       <label for="events-admin-image-url">
@@ -1321,7 +1339,14 @@ function renderSessionsAdminForm() {
       <div class="admin-field-grid">
         <label for="sessions-admin-date">
           Date
-          <input id="sessions-admin-date" name="session_date" type="date" required />
+          <input
+            id="sessions-admin-date"
+            name="session_date"
+            type="text"
+            inputmode="numeric"
+            placeholder="31/03/2026"
+            required
+          />
         </label>
         <label for="sessions-admin-level">
           Niveau
@@ -1331,11 +1356,23 @@ function renderSessionsAdminForm() {
       <div class="admin-field-grid">
         <label for="sessions-admin-start-time">
           Heure de début
-          <input id="sessions-admin-start-time" name="start_time" type="time" />
+          <input
+            id="sessions-admin-start-time"
+            name="start_time"
+            type="text"
+            inputmode="numeric"
+            placeholder="18:00"
+          />
         </label>
         <label for="sessions-admin-end-time">
           Heure de fin
-          <input id="sessions-admin-end-time" name="end_time" type="time" />
+          <input
+            id="sessions-admin-end-time"
+            name="end_time"
+            type="text"
+            inputmode="numeric"
+            placeholder="20:00"
+          />
         </label>
       </div>
       <div class="admin-field-grid">
@@ -1397,7 +1434,14 @@ function renderModuleCompletionsAdminForm() {
         </label>
         <label for="completions-admin-date">
           Date de validation
-          <input id="completions-admin-date" name="completion_date" type="date" required />
+          <input
+            id="completions-admin-date"
+            name="completion_date"
+            type="text"
+            inputmode="numeric"
+            placeholder="31/03/2026"
+            required
+          />
         </label>
       </div>
       <label for="completions-admin-status">
@@ -1552,7 +1596,7 @@ function renderHomeFeaturedEventLoadingState() {
         <span>…</span>
       </div>
       <h3>Chargement de l’agenda</h3>
-      <p>Le prochain événement du fablab est en cours de récupération depuis Supabase.</p>
+      <p>Le prochain événement du fablab est en cours de récupération.</p>
       <div class="hero-event-date">À venir</div>
     </article>
   `;
@@ -1653,7 +1697,7 @@ function renderHomeFeatureItems(stats) {
     },
     {
       title: `${stats.eventCount} événement${stats.eventCount === 1 ? "" : "s"} publié${stats.eventCount === 1 ? "" : "s"}`,
-      text: "L’accueil reflète l’activité réelle du lieu avec un agenda mis à jour depuis Supabase.",
+      text: "L’accueil reflète l’activité réelle du lieu avec un agenda mis à jour en direct.",
     },
   ];
 
@@ -2392,6 +2436,7 @@ function bindUsersAdminControls() {
 
 function bindDeletionRequestsAdminControls() {
   const section = adminDom?.deletionRequests;
+  const archivesSection = adminDom?.archives;
 
   if (!section?.list) {
     return;
@@ -2419,6 +2464,16 @@ function bindDeletionRequestsAdminControls() {
     if (button.dataset.action === "process-deletion-request") {
       await processAccountDeletionRequest(requestId, button);
     }
+  });
+
+  archivesSection?.list?.addEventListener("click", async (event) => {
+    const button = event.target.closest('[data-action="process-deletion-request"][data-id]');
+
+    if (!button) {
+      return;
+    }
+
+    await processAccountDeletionRequest(button.dataset.id, button);
   });
 }
 
@@ -2780,12 +2835,13 @@ async function refreshEventsAdminSection() {
   }
 
   adminState.events = (data ?? []).map(normalizeAdminEventRecord);
+  const currentEvents = adminState.events.filter((item) => !isEventArchived(item));
   section.count.textContent = formatAdminCount(
-    adminState.events.length,
+    currentEvents.length,
     "événement",
     "événements",
   );
-  section.list.innerHTML = renderEventsAdminList(adminState.events);
+  section.list.innerHTML = renderEventsAdminList(currentEvents);
   renderAdminMetrics();
 }
 
@@ -2862,12 +2918,13 @@ async function refreshDeletionRequestsAdminSection() {
   }
 
   adminState.deletionRequests = (data ?? []).map(normalizeDeletionRequestRecord);
+  const pendingRequests = adminState.deletionRequests.filter((item) => item.status === "pending");
   section.count.textContent = formatAdminCount(
-    adminState.deletionRequests.length,
+    pendingRequests.length,
     "demande",
     "demandes",
   );
-  section.list.innerHTML = renderDeletionRequestsAdminList(adminState.deletionRequests);
+  section.list.innerHTML = renderDeletionRequestsAdminList(pendingRequests);
 }
 
 async function refreshModulesAdminCollection(selectedIds = null) {
@@ -2974,13 +3031,14 @@ async function refreshSessionsAdminSection() {
   adminState.sessions = (sessionsResult.data ?? []).map(normalizeAdminSessionRecord).map(
     attachSessionModuleIds,
   );
+  const currentSessions = adminState.sessions.filter((item) => !isSessionArchived(item));
 
   section.count.textContent = formatAdminCount(
-    adminState.sessions.length,
+    currentSessions.length,
     "session",
     "sessions",
   );
-  section.list.innerHTML = renderSessionsAdminList(adminState.sessions);
+  section.list.innerHTML = renderSessionsAdminList(currentSessions);
   syncSessionTemplateOptions();
   syncModuleCompletionFormOptions();
   renderAdminMetrics();
@@ -3019,7 +3077,9 @@ async function refreshRegistrationsAdminSection() {
   );
   section.list.innerHTML = renderRegistrationsAdminList(adminState.registrations);
   if (adminDom?.sessions?.list && adminState.sessions.length) {
-    adminDom.sessions.list.innerHTML = renderSessionsAdminList(adminState.sessions);
+    adminDom.sessions.list.innerHTML = renderSessionsAdminList(
+      adminState.sessions.filter((item) => !isSessionArchived(item)),
+    );
   }
   renderAdminMetrics();
 }
@@ -3109,7 +3169,7 @@ function toggleAdminUserModuleFields(container, checkbox) {
   if (dateInput) {
     dateInput.disabled = !checkbox.checked;
     if (checkbox.checked && !dateInput.value) {
-      dateInput.value = new Date().toISOString().slice(0, 10);
+      dateInput.value = formatDateEntry(new Date());
     }
   }
 
@@ -3154,8 +3214,17 @@ async function handleUsersAdminModulesFormSubmit(formNode) {
     const existingRecord = completionMap.get(String(moduleId));
 
     if (checkbox.checked) {
-      const completionDate = dateInput?.value ?? "";
+      const completionDate = normalizeDateEntry(dateInput?.value);
       const status = statusSelect?.value ?? "completed";
+
+      if (completionDate === null) {
+        setAdminMessage(
+          section.message,
+          "error",
+          `Utilisez le format JJ/MM/AAAA pour ${findAdminRecordById(adminState.modules, moduleId)?.title ?? "ce module"}.`,
+        );
+        return;
+      }
 
       if (!completionDate) {
         setAdminMessage(
@@ -3337,7 +3406,10 @@ async function reviewAccountDeletionRequest(requestId, nextStatus, button) {
 }
 
 async function processAccountDeletionRequest(requestId, button) {
-  const section = adminDom?.deletionRequests;
+  const section =
+    button?.closest("#archives-admin-list") && adminDom?.archives?.message
+      ? adminDom.archives
+      : adminDom?.deletionRequests;
   const requestRecord = findAdminRecordById(adminState.deletionRequests, requestId);
 
   if (!section?.message || !requestRecord || !adminSessionUser?.id) {
@@ -3590,44 +3662,13 @@ function renderNeededEquipmentAdminList(items) {
 
 function renderEventsAdminList(items) {
   if (!items.length) {
-    return renderAdminEmptyState("Aucun événement n’est publié pour le moment.");
+    return renderAdminEmptyState("Aucun événement courant n’est publié pour le moment.");
   }
 
-  const upcomingItems = items.filter((item) => !isEventArchived(item));
-  const archivedItems = items.filter((item) => isEventArchived(item));
-
-  return `
-    <div class="admin-event-groups">
-      <div class="admin-event-group">
-        <div class="admin-panel-head admin-panel-head-start">
-          <h3>À venir</h3>
-          <span class="subtle-badge">${formatAdminCount(upcomingItems.length, "événement", "événements")}</span>
-        </div>
-        ${
-          upcomingItems.length
-            ? renderAdminTable(
-                ["Titre", "Date", "Lieu", "Image", "Actions"],
-                renderEventsAdminRows(upcomingItems),
-              )
-            : renderAdminEmptyState("Aucun événement à venir pour le moment.")
-        }
-      </div>
-      <div class="admin-event-group">
-        <div class="admin-panel-head admin-panel-head-start">
-          <h3>Archives</h3>
-          <span class="subtle-badge">${formatAdminCount(archivedItems.length, "événement", "événements")}</span>
-        </div>
-        ${
-          archivedItems.length
-            ? renderAdminTable(
-                ["Titre", "Date", "Lieu", "Image", "Actions"],
-                renderEventsAdminRows(archivedItems),
-              )
-            : renderAdminEmptyState("Aucun événement archivé pour le moment.")
-        }
-      </div>
-    </div>
-  `;
+  return renderAdminTable(
+    ["Titre", "Date", "Lieu", "Image", "Actions"],
+    renderEventsAdminRows(items),
+  );
 }
 
 function renderEventsAdminRows(items) {
@@ -3813,7 +3854,7 @@ function renderAdminUserDeleteButton(userRecord, label = "Supprimer") {
 function renderAdminUserModuleEditor(moduleItem, completionRecord) {
   const isChecked = Boolean(completionRecord);
   const moduleId = String(moduleItem.id);
-  const dateValue = completionRecord?.completionDate ?? "";
+  const dateValue = formatDateEntry(completionRecord?.completionDate ?? "");
   const statusValue = completionRecord?.status ?? "completed";
 
   return `
@@ -3846,7 +3887,9 @@ function renderAdminUserModuleEditor(moduleItem, completionRecord) {
       <td>
         <input
           id="user-module-date-${escapeHtml(moduleId)}"
-          type="date"
+          type="text"
+          inputmode="numeric"
+          placeholder="31/03/2026"
           data-module-date="${escapeHtml(moduleId)}"
           value="${escapeHtml(dateValue)}"
           ${isChecked ? "" : "disabled"}
@@ -4278,8 +4321,8 @@ function renderDeletionRequestAdminCard(item) {
   `;
 }
 
-function renderAdminArchivesList(archivedSessions, handledDeletionRequests) {
-  if (!archivedSessions.length && !handledDeletionRequests.length) {
+function renderAdminArchivesList(archivedSessions, archivedEvents, handledDeletionRequests) {
+  if (!archivedSessions.length && !archivedEvents.length && !handledDeletionRequests.length) {
     return renderAdminEmptyState("Aucune archive à afficher pour le moment.");
   }
 
@@ -4321,6 +4364,42 @@ function renderAdminArchivesList(archivedSessions, handledDeletionRequests) {
       </div>
       <div class="admin-event-group">
         <div class="admin-panel-head admin-panel-head-start">
+          <h3>Événements archivés</h3>
+          <span class="subtle-badge">${formatAdminCount(
+            archivedEvents.length,
+            "événement",
+            "événements",
+          )}</span>
+        </div>
+        ${
+          archivedEvents.length
+            ? renderAdminTable(
+                ["Titre", "Date", "Horaires", "Lieu"],
+                archivedEvents
+                  .map(
+                    (item) => `
+                      <tr>
+                        <td>
+                          <strong>${escapeHtml(item.title)}</strong>
+                          ${
+                            item.shortDescription
+                              ? `<div class="admin-cell-meta">${escapeHtml(item.shortDescription)}</div>`
+                              : ""
+                          }
+                        </td>
+                        <td>${escapeHtml(formatSafeDate(item.eventDate))}</td>
+                        <td>${escapeHtml(item.timeRange || "Horaire à confirmer")}</td>
+                        <td>${escapeHtml(item.location || "Non renseigné")}</td>
+                      </tr>
+                    `,
+                  )
+                  .join(""),
+              )
+            : renderAdminEmptyState("Aucun événement archivé pour le moment.")
+        }
+      </div>
+      <div class="admin-event-group">
+        <div class="admin-panel-head admin-panel-head-start">
           <h3>Demandes gérées</h3>
           <span class="subtle-badge">${formatAdminCount(
             handledDeletionRequests.length,
@@ -4356,6 +4435,22 @@ function renderAdminArchivesList(archivedSessions, handledDeletionRequests) {
                           ${
                             item.adminNote
                               ? `<p class="session-notes"><strong>Note admin :</strong> ${escapeHtml(item.adminNote)}</p>`
+                              : ""
+                          }
+                          ${
+                            item.status === "approved"
+                              ? `
+                                <div class="admin-row-actions">
+                                  <button
+                                    class="button button-danger button-small"
+                                    data-action="process-deletion-request"
+                                    data-id="${escapeHtml(item.id)}"
+                                    type="button"
+                                  >
+                                    Traiter
+                                  </button>
+                                </div>
+                              `
                               : ""
                           }
                         </article>
@@ -4630,9 +4725,12 @@ function renderAdminViewCounts() {
   }
 
   const actionableDeletionRequests = adminState.deletionRequests.filter(
-    (item) => item.status !== "processed",
+    (item) => item.status === "pending",
   ).length;
+  const currentSessionsCount = adminState.sessions.filter((item) => !isSessionArchived(item)).length;
+  const currentEventsCount = adminState.events.filter((item) => !isEventArchived(item)).length;
   const archivedSessionsCount = adminState.sessions.filter((item) => isSessionArchived(item)).length;
+  const archivedEventsCount = adminState.events.filter((item) => isEventArchived(item)).length;
   const handledDeletionRequestsCount = adminState.deletionRequests.filter(
     (item) => item.status !== "pending",
   ).length;
@@ -4644,7 +4742,7 @@ function renderAdminViewCounts() {
   }
 
   if (views.programmationCount) {
-    views.programmationCount.textContent = String(adminState.sessions.length + adminState.events.length);
+    views.programmationCount.textContent = String(currentSessionsCount + currentEventsCount);
   }
 
   if (views.utilisateursCount) {
@@ -4663,7 +4761,7 @@ function renderAdminViewCounts() {
 
   if (views.archivesCount) {
     views.archivesCount.textContent = String(
-      archivedSessionsCount + handledDeletionRequestsCount,
+      archivedSessionsCount + archivedEventsCount + handledDeletionRequestsCount,
     );
   }
 }
@@ -4676,16 +4774,21 @@ function refreshAdminArchivesSection() {
   }
 
   const archivedSessions = adminState.sessions.filter((item) => isSessionArchived(item));
+  const archivedEvents = adminState.events.filter((item) => isEventArchived(item));
   const handledDeletionRequests = adminState.deletionRequests.filter(
     (item) => item.status !== "pending",
   );
 
   section.count.textContent = formatAdminCount(
-    archivedSessions.length + handledDeletionRequests.length,
+    archivedSessions.length + archivedEvents.length + handledDeletionRequests.length,
     "archive",
     "archives",
   );
-  section.list.innerHTML = renderAdminArchivesList(archivedSessions, handledDeletionRequests);
+  section.list.innerHTML = renderAdminArchivesList(
+    archivedSessions,
+    archivedEvents,
+    handledDeletionRequests,
+  );
 }
 
 async function handleInventoryFormSubmit(event) {
@@ -4807,12 +4910,22 @@ async function handleEventAdminFormSubmit(event) {
     title: section.title?.value.trim() ?? "",
     short_description: section.shortDescription?.value.trim() ?? "",
     description: normalizeOptionalString(section.description?.value),
-    event_date: section.date?.value ?? "",
-    start_time: normalizeOptionalString(section.startTime?.value),
-    end_time: normalizeOptionalString(section.endTime?.value),
+    event_date: normalizeDateEntry(section.date?.value),
+    start_time: normalizeOptionalTimeEntry(section.startTime?.value),
+    end_time: normalizeOptionalTimeEntry(section.endTime?.value),
     location: normalizeOptionalString(section.location?.value),
     image_url: normalizeOptionalString(section.imageUrl?.value),
   };
+
+  if (payload.event_date === null) {
+    setAdminMessage(section.formMessage, "error", "Utilisez le format de date JJ/MM/AAAA.");
+    return;
+  }
+
+  if (payload.start_time === null || payload.end_time === null) {
+    setAdminMessage(section.formMessage, "error", "Utilisez le format d’heure 24h HH:mm.");
+    return;
+  }
 
   if (!payload.title || !payload.short_description || !payload.event_date) {
     setAdminMessage(
@@ -4920,9 +5033,9 @@ async function handleSessionsAdminFormSubmit(event) {
   const seatsTotal = normalizeOptionalNumber(section.seatsTotal?.value);
   const payload = {
     title: section.title?.value.trim() ?? "",
-    session_date: section.date?.value ?? "",
-    start_time: normalizeOptionalString(section.startTime?.value),
-    end_time: normalizeOptionalString(section.endTime?.value),
+    session_date: normalizeDateEntry(section.date?.value),
+    start_time: normalizeOptionalTimeEntry(section.startTime?.value),
+    end_time: normalizeOptionalTimeEntry(section.endTime?.value),
     level: normalizeOptionalString(section.level?.value),
     seats_total: seatsTotal,
     seats_remaining: resolveSessionSeatsRemainingPayload({
@@ -4931,6 +5044,16 @@ async function handleSessionsAdminFormSubmit(event) {
     }),
     notes: normalizeOptionalString(section.notes?.value),
   };
+
+  if (payload.session_date === null) {
+    setAdminMessage(section.formMessage, "error", "Utilisez le format de date JJ/MM/AAAA.");
+    return;
+  }
+
+  if (payload.start_time === null || payload.end_time === null) {
+    setAdminMessage(section.formMessage, "error", "Utilisez le format d’heure 24h HH:mm.");
+    return;
+  }
 
   if (!payload.title || !payload.session_date) {
     setAdminMessage(
@@ -5077,10 +5200,15 @@ async function handleModuleCompletionFormSubmit(event) {
     module_id: section.moduleId?.value ?? "",
     session_id: normalizeOptionalString(section.sessionId?.value),
     validated_by: adminSessionUser.id,
-    completion_date: section.completionDate?.value ?? "",
+    completion_date: normalizeDateEntry(section.completionDate?.value),
     status: section.status?.value ?? "completed",
     notes: normalizeOptionalString(section.notes?.value),
   };
+
+  if (payload.completion_date === null) {
+    setAdminMessage(section.formMessage, "error", "Utilisez le format de date JJ/MM/AAAA.");
+    return;
+  }
 
   if (!payload.user_id || !payload.module_id || !payload.completion_date || !payload.status) {
     setAdminMessage(
@@ -5173,9 +5301,9 @@ function populateEventsAdminForm(recordId) {
   section.title.value = record.title;
   section.shortDescription.value = record.shortDescription;
   section.description.value = record.description;
-  section.date.value = record.eventDate;
-  section.startTime.value = record.startTime;
-  section.endTime.value = record.endTime;
+  section.date.value = formatDateEntry(record.eventDate);
+  section.startTime.value = formatTimeEntry(record.startTime);
+  section.endTime.value = formatTimeEntry(record.endTime);
   section.location.value = record.location;
   section.imageUrl.value = record.imageUrl;
   updateAdminFormMode("events-admin", adminFormLabels.event);
@@ -5213,9 +5341,9 @@ function populateSessionsAdminForm(recordId) {
 
   section.id.value = record.id;
   section.title.value = record.title;
-  section.date.value = record.sessionDate;
-  section.startTime.value = record.startTime;
-  section.endTime.value = record.endTime;
+  section.date.value = formatDateEntry(record.sessionDate);
+  section.startTime.value = formatTimeEntry(record.startTime);
+  section.endTime.value = formatTimeEntry(record.endTime);
   section.level.value = record.level;
   section.seatsTotal.value = record.seatsTotal ?? "";
   section.notes.value = record.notes;
@@ -5237,9 +5365,9 @@ function populateSessionTemplate(recordId) {
 
   section.id.value = "";
   section.title.value = record.title;
-  section.date.value = record.sessionDate;
-  section.startTime.value = record.startTime;
-  section.endTime.value = record.endTime;
+  section.date.value = formatDateEntry(record.sessionDate);
+  section.startTime.value = formatTimeEntry(record.startTime);
+  section.endTime.value = formatTimeEntry(record.endTime);
   section.level.value = record.level;
   section.seatsTotal.value = record.seatsTotal ?? "";
   section.notes.value = record.notes;
@@ -5268,7 +5396,7 @@ function populateModuleCompletionForm(recordId) {
   section.userId.value = String(record.userId ?? "");
   section.moduleId.value = String(record.moduleId ?? "");
   section.sessionId.value = String(record.sessionId ?? "");
-  section.completionDate.value = record.completionDate || "";
+  section.completionDate.value = formatDateEntry(record.completionDate || "");
   section.status.innerHTML = renderModuleCompletionStatusOptions(record.status);
   section.status.value = record.status;
   section.notes.value = record.notes;
@@ -5365,7 +5493,7 @@ function resetModuleCompletionForm({ keepMessage = false } = {}) {
   syncModuleCompletionFormOptions();
 
   if (section.completionDate) {
-    section.completionDate.value = new Date().toISOString().slice(0, 10);
+    section.completionDate.value = formatDateEntry(new Date());
   }
 
   if (section.status) {
@@ -5861,6 +5989,115 @@ function normalizeOptionalString(value) {
   return trimmed ? trimmed : null;
 }
 
+function buildNormalizedIsoDate(yearValue, monthValue, dayValue) {
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  const parsed = new Date(year, month - 1, day);
+
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return `${year}-${padNumber(month)}-${padNumber(day)}`;
+}
+
+function normalizeDateEntry(value) {
+  const trimmed = String(value ?? "").trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (isoMatch) {
+    return buildNormalizedIsoDate(isoMatch[1], isoMatch[2], isoMatch[3]);
+  }
+
+  const frenchMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+  if (frenchMatch) {
+    return buildNormalizedIsoDate(frenchMatch[3], frenchMatch[2], frenchMatch[1]);
+  }
+
+  return null;
+}
+
+function formatDateEntry(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${padNumber(value.getDate())}/${padNumber(value.getMonth() + 1)}/${value.getFullYear()}`;
+  }
+
+  const normalizedDate = normalizeDateEntry(value);
+
+  if (normalizedDate === null) {
+    return String(value ?? "").trim();
+  }
+
+  return normalizedDate ? formatDate(normalizedDate) : "";
+}
+
+function normalizeTimeEntry(value) {
+  const trimmed = String(value ?? "").trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const timeMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+
+  if (!timeMatch) {
+    return null;
+  }
+
+  const hours = Number(timeMatch[1]);
+  const minutes = Number(timeMatch[2]);
+
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+
+  return `${padNumber(hours)}:${padNumber(minutes)}`;
+}
+
+function normalizeOptionalTimeEntry(value) {
+  const normalizedTime = normalizeTimeEntry(value);
+
+  if (normalizedTime === "") {
+    return null;
+  }
+
+  return normalizedTime;
+}
+
+function formatTimeEntry(value) {
+  const normalizedTime = normalizeTimeEntry(value);
+
+  if (normalizedTime === null) {
+    return String(value ?? "").trim();
+  }
+
+  return normalizedTime;
+}
+
 function formatSafeDate(value) {
   return value ? formatDate(value) : "Date à confirmer";
 }
@@ -6056,7 +6293,7 @@ function isEventArchived(event, referenceDate = new Date()) {
   return eventEndDateTime ? eventEndDateTime.getTime() < referenceDate.getTime() : false;
 }
 
-function renderEventsLoadingState(label = "Chargement", text = "Les événements planifiés sont en cours de chargement depuis Supabase.") {
+function renderEventsLoadingState(label = "Chargement", text = "Les événements planifiés sont en cours de chargement.") {
   return `
     <article class="info-card event-card animate-rise">
       <span class="event-date-badge">${label}</span>
@@ -6119,7 +6356,7 @@ function renderSessionsLoadingState() {
         <span class="subtle-badge">Sessions</span>
       </div>
       <h3>Récupération des sessions</h3>
-      <p>Les prochaines sessions de cours sont en cours de chargement depuis Supabase.</p>
+      <p>Les prochaines sessions de cours sont en cours de chargement.</p>
     </article>
   `;
 }
@@ -6132,7 +6369,7 @@ function renderSessionsArchiveLoadingState() {
         <span class="subtle-badge">Sessions</span>
       </div>
       <h3>Récupération des sessions passées</h3>
-      <p>Les sessions déjà terminées sont en cours de chargement depuis Supabase.</p>
+      <p>Les sessions déjà terminées sont en cours de chargement.</p>
     </article>
   `;
 }
