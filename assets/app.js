@@ -3067,12 +3067,13 @@ async function refreshRegistrationsAdminSection() {
   }
 
   adminState.registrations = (data ?? []).map(normalizeAdminRegistrationRecord);
+  const actionableRegistrations = adminState.registrations.filter(isActionableRegistrationRequest);
   section.count.textContent = formatAdminCount(
-    adminState.registrations.length,
+    actionableRegistrations.length,
     "inscription",
     "inscriptions",
   );
-  section.list.innerHTML = renderRegistrationsAdminList(adminState.registrations);
+  section.list.innerHTML = renderRegistrationsAdminList(actionableRegistrations);
   if (adminDom?.sessions?.list && adminState.sessions.length) {
     adminDom.sessions.list.innerHTML = renderSessionsAdminList(
       adminState.sessions.filter((item) => !isSessionArchived(item)),
@@ -4723,6 +4724,9 @@ function renderAdminViewCounts() {
   const actionableDeletionRequests = adminState.deletionRequests.filter(
     (item) => item.status === "pending",
   ).length;
+  const actionableRegistrationsCount = adminState.registrations.filter(
+    isActionableRegistrationRequest,
+  ).length;
   const currentSessionsCount = adminState.sessions.filter((item) => !isSessionArchived(item)).length;
   const currentEventsCount = adminState.events.filter((item) => !isEventArchived(item)).length;
   const archivedSessionsCount = adminState.sessions.filter((item) => isSessionArchived(item)).length;
@@ -4733,7 +4737,7 @@ function renderAdminViewCounts() {
 
   if (views.demandesCount) {
     views.demandesCount.textContent = String(
-      adminState.registrations.length + actionableDeletionRequests,
+      actionableRegistrationsCount + actionableDeletionRequests,
     );
   }
 
@@ -6885,6 +6889,11 @@ function formatRegistrationStatus(status) {
   };
 
   return labelMap[status] ?? status ?? "Statut inconnu";
+}
+
+function isActionableRegistrationRequest(registration) {
+  const status = registration?.status ?? "";
+  return status === "registered" || status === "waitlisted";
 }
 
 function formatDeletionRequestStatus(status) {
