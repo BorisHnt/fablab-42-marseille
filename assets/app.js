@@ -82,8 +82,6 @@ const adminFormLabels = {
 const registrationStatusOptions = [
   "registered",
   "confirmed",
-  "waitlisted",
-  "cancelled",
 ];
 
 const moduleCompletionStatusOptions = [
@@ -796,15 +794,6 @@ function renderUserDashboardPage(summary) {
             <p id="user-data-export-message" class="admin-feedback" aria-live="polite"></p>
           </article>
         </div>
-      </section>
-
-      <section class="section-card animate-rise is-hidden" id="user-cancelled-section">
-        ${sectionHeading(
-          "Archive",
-          "Mes inscriptions annulées",
-          "Un historique léger des réservations annulées, utile si vous devez replanifier plus tard.",
-        )}
-        <div class="card-grid two-columns" id="user-cancelled-registrations"></div>
       </section>
     </div>
   `;
@@ -4095,7 +4084,7 @@ function renderSessionAdminRegistrationsBlock(sessionId) {
   const relatedRegistrations = adminState.registrations.filter(
     (item) =>
       String(item.sessionId) === String(sessionId) &&
-      !isArchivedRegistration(item),
+      isActiveRegistrationStatus(item.status),
   );
 
   if (!relatedRegistrations.length) {
@@ -4324,18 +4313,8 @@ function renderDeletionRequestAdminCard(item) {
   `;
 }
 
-function renderAdminArchivesList(
-  archivedSessions,
-  archivedEvents,
-  handledDeletionRequests,
-  archivedRegistrations,
-) {
-  if (
-    !archivedSessions.length &&
-    !archivedEvents.length &&
-    !handledDeletionRequests.length &&
-    !archivedRegistrations.length
-  ) {
+function renderAdminArchivesList(archivedSessions, archivedEvents, handledDeletionRequests) {
+  if (!archivedSessions.length && !archivedEvents.length && !handledDeletionRequests.length) {
     return renderAdminEmptyState("Aucune archive à afficher pour le moment.");
   }
 
@@ -4473,46 +4452,6 @@ function renderAdminArchivesList(
                 </div>
               `
             : renderAdminEmptyState("Aucune demande gérée à archiver pour le moment.")
-        }
-      </div>
-      <div class="admin-event-group">
-        <div class="admin-panel-head admin-panel-head-start">
-          <h3>Inscriptions annulées</h3>
-          <span class="subtle-badge">${formatAdminCount(
-            archivedRegistrations.length,
-            "inscription",
-            "inscriptions",
-          )}</span>
-        </div>
-        ${
-          archivedRegistrations.length
-            ? renderAdminTable(
-                ["Participant", "Session", "Date de demande", "Statut"],
-                archivedRegistrations
-                  .map(
-                    (item) => `
-                      <tr>
-                        <td>
-                          <strong>${escapeHtml(item.firstName)} ${escapeHtml(item.lastName)}</strong>
-                          <div class="admin-cell-meta">${escapeHtml(item.email)}</div>
-                          ${
-                            item.login42
-                              ? `<div class="admin-cell-meta">Login 42 : ${escapeHtml(item.login42)}</div>`
-                              : ""
-                          }
-                        </td>
-                        <td>
-                          <strong>${escapeHtml(item.sessionTitle)}</strong>
-                          <div class="admin-cell-meta">${escapeHtml(formatSafeDate(item.sessionDate))}</div>
-                        </td>
-                        <td>${escapeHtml(item.createdLabel)}</td>
-                        <td><span class="subtle-badge">${escapeHtml(formatRegistrationStatus(item.status))}</span></td>
-                      </tr>
-                    `,
-                  )
-                  .join(""),
-              )
-            : renderAdminEmptyState("Aucune inscription annulée à archiver pour le moment.")
         }
       </div>
     </div>
@@ -4698,11 +4637,7 @@ function renderModuleCompletionSessionOptions(selectedSessionId = "") {
 }
 
 function renderRegistrationStatusOptions(currentStatus) {
-  const statuses = registrationStatusOptions.includes(currentStatus)
-    ? registrationStatusOptions
-    : [...registrationStatusOptions, currentStatus].filter(Boolean);
-
-  return statuses
+  return registrationStatusOptions
     .map(
       (status) => `
         <option value="${escapeHtml(status)}" ${status === currentStatus ? "selected" : ""}>
@@ -4760,7 +4695,7 @@ function renderAdminMetrics() {
 
   if (adminDom.metrics.registrations) {
     adminDom.metrics.registrations.textContent = formatAdminCount(
-      adminState.registrations.length,
+      adminState.registrations.filter((item) => isActiveRegistrationStatus(item.status)).length,
       "inscription",
       "inscriptions",
     );
@@ -4787,7 +4722,6 @@ function renderAdminViewCounts() {
   const currentEventsCount = adminState.events.filter((item) => !isEventArchived(item)).length;
   const archivedSessionsCount = adminState.sessions.filter((item) => isSessionArchived(item)).length;
   const archivedEventsCount = adminState.events.filter((item) => isEventArchived(item)).length;
-  const archivedRegistrationsCount = adminState.registrations.filter(isArchivedRegistration).length;
   const handledDeletionRequestsCount = adminState.deletionRequests.filter(
     (item) => item.status !== "pending",
   ).length;
@@ -4820,7 +4754,6 @@ function renderAdminViewCounts() {
     views.archivesCount.textContent = String(
       archivedSessionsCount +
         archivedEventsCount +
-        archivedRegistrationsCount +
         handledDeletionRequestsCount,
     );
   }
@@ -4835,7 +4768,6 @@ function refreshAdminArchivesSection() {
 
   const archivedSessions = adminState.sessions.filter((item) => isSessionArchived(item));
   const archivedEvents = adminState.events.filter((item) => isEventArchived(item));
-  const archivedRegistrations = adminState.registrations.filter(isArchivedRegistration);
   const handledDeletionRequests = adminState.deletionRequests.filter(
     (item) => item.status !== "pending",
   );
@@ -4843,7 +4775,6 @@ function refreshAdminArchivesSection() {
   section.count.textContent = formatAdminCount(
     archivedSessions.length +
       archivedEvents.length +
-      archivedRegistrations.length +
       handledDeletionRequests.length,
     "archive",
     "archives",
@@ -4852,7 +4783,6 @@ function refreshAdminArchivesSection() {
     archivedSessions,
     archivedEvents,
     handledDeletionRequests,
-    archivedRegistrations,
   );
 }
 
@@ -6689,26 +6619,6 @@ function renderCompletedModuleCard(moduleItem) {
   `;
 }
 
-function renderCancelledRegistrationCard(registration) {
-  return `
-    <article class="info-card session-card animate-rise">
-      <div class="session-head">
-        <span class="category-badge">${formatSafeDate(registration.sessionDate)}</span>
-        <span class="subtle-badge">${registration.statusLabel}</span>
-      </div>
-      <h3>${registration.title}</h3>
-      <div class="session-meta">
-        ${
-          registration.timeRange
-            ? `<div class="inline-detail">${registration.timeRange}</div>`
-            : ""
-        }
-      </div>
-      ${registration.notes ? `<p class="session-notes">${registration.notes}</p>` : ""}
-    </article>
-  `;
-}
-
 async function getCurrentSupabaseSession() {
   const { data, error } = await supabase.auth.getSession();
   return {
@@ -6732,7 +6642,7 @@ async function fetchCurrentUserActiveRegistrationIndex() {
     .from("registrations")
     .select("id, session_id, status")
     .eq("user_id", session.user.id)
-    .neq("status", "cancelled");
+    .in("status", ["registered", "confirmed"]);
 
   const registrationIndex = new Map(
     (data ?? [])
@@ -6945,22 +6855,19 @@ function normalizeDeletionRequestRecord(row) {
 
 function formatRegistrationStatus(status) {
   const labelMap = {
-    registered: "Demande reçue",
-    cancelled: "Inscription annulée",
+    registered: "Inscription enregistrée",
     confirmed: "Inscription confirmée",
-    waitlisted: "Liste d’attente",
   };
 
   return labelMap[status] ?? status ?? "Statut inconnu";
 }
 
 function isActionableRegistrationRequest(registration) {
-  const status = registration?.status ?? "";
-  return status === "registered" || status === "waitlisted";
+  return (registration?.status ?? "") === "registered";
 }
 
-function isArchivedRegistration(registration) {
-  return (registration?.status ?? "") === "cancelled";
+function isActiveRegistrationStatus(status) {
+  return status === "registered" || status === "confirmed";
 }
 
 function formatDeletionRequestStatus(status) {
@@ -7323,18 +7230,18 @@ function bindPublicRegistrationActions(container, refreshHandler) {
     button.textContent = "Désinscription...";
     setSessionActionFeedback(container, sessionId, undefined, "");
 
-    const { error: updateError } = await supabase
+    const { error: deleteError } = await supabase
       .from("registrations")
-      .update({ status: "cancelled" })
+      .delete()
       .eq("id", registrationId)
       .eq("user_id", session.user.id);
 
-    if (updateError) {
+    if (deleteError) {
       setSessionActionFeedback(
         container,
         sessionId,
         "error",
-        updateError.message || "Impossible de traiter la désinscription.",
+        deleteError.message || "Impossible de traiter la désinscription.",
       );
       button.disabled = false;
       button.textContent = "Se désinscrire";
@@ -7345,7 +7252,7 @@ function bindPublicRegistrationActions(container, refreshHandler) {
       container,
       sessionId,
       "success",
-      "Inscription annulée. Mise à jour en cours.",
+      "Désinscription enregistrée. Mise à jour en cours.",
     );
     await refreshHandler();
   });
@@ -7648,12 +7555,16 @@ async function hydrateRegistrationPage() {
     }
 
     const allSessions = (data ?? []).map(normalizeSession);
+    const registrationState = await fetchCurrentUserActiveRegistrationIndex();
+    const activeSessionIds = new Set(registrationState.registrationIndex.keys());
+
     availableSessions = allSessions.filter(
       (session) =>
         !session.isArchived &&
         !session.isRegistrationClosed &&
         !session.isFull &&
-        (session.seatsRemaining === null || session.seatsRemaining > 0),
+        (session.seatsRemaining === null || session.seatsRemaining > 0) &&
+        !activeSessionIds.has(String(session.id)),
     );
 
     if (!availableSessions.length) {
@@ -8093,12 +8004,6 @@ async function hydrateUserDashboardPage() {
 
     const allRegistrations = registrationsResult.error ? [] : (registrationsResult.data ?? []);
 
-    const cancelledRegistrations = registrationsResult.error
-      ? []
-      : allRegistrations
-          .filter((item) => String(item.status).toLowerCase() === "cancelled")
-          .map((item) => normalizeUpcomingRegistrationRecord(item, null));
-
     const deletionRequests = deletionRequestsResult.error
       ? []
       : (deletionRequestsResult.data ?? []).map(normalizeDeletionRequestRecord);
@@ -8118,8 +8023,6 @@ async function hydrateUserDashboardPage() {
 
     const upcomingNode = document.getElementById("user-upcoming-registrations");
     const completedNode = document.getElementById("user-completed-modules");
-    const cancelledNode = document.getElementById("user-cancelled-registrations");
-    const cancelledSection = document.getElementById("user-cancelled-section");
     const dashboardMessageNode = document.getElementById("user-dashboard-message");
     const logoutButton = document.getElementById("user-logout-button");
     const deletionPanelNode = document.getElementById("user-account-deletion-panel");
@@ -8159,18 +8062,6 @@ async function hydrateUserDashboardPage() {
         );
       } else {
         completedNode.innerHTML = completedModules.map(renderCompletedModuleCard).join("");
-      }
-    }
-
-    if (cancelledSection && cancelledNode) {
-      if (cancelledRegistrations.length) {
-        cancelledSection.classList.remove("is-hidden");
-        cancelledNode.innerHTML = cancelledRegistrations
-          .map(renderCancelledRegistrationCard)
-          .join("");
-      } else {
-        cancelledSection.classList.add("is-hidden");
-        cancelledNode.innerHTML = "";
       }
     }
 
@@ -8236,17 +8127,17 @@ async function hydrateUserDashboardPage() {
         button.textContent = "Annulation...";
         setAdminMessage(dashboardMessageNode);
 
-        const { error: updateError } = await supabase
+        const { error: deleteError } = await supabase
           .from("registrations")
-          .update({ status: "cancelled" })
+          .delete()
           .eq("id", registrationId)
           .eq("user_id", session.user.id);
 
-        if (updateError) {
+        if (deleteError) {
           setAdminMessage(
             dashboardMessageNode,
             "error",
-            updateError.message || "Impossible d’annuler cette inscription.",
+            deleteError.message || "Impossible de supprimer cette inscription.",
           );
           button.disabled = false;
           button.textContent = "Annuler l’inscription";
@@ -8256,7 +8147,7 @@ async function hydrateUserDashboardPage() {
         setAdminMessage(
           dashboardMessageNode,
           "success",
-          "Inscription annulée. Vos données sont en cours de mise à jour.",
+          "Désinscription enregistrée. Vos données sont en cours de mise à jour.",
         );
         await renderDashboard();
       });
