@@ -471,8 +471,8 @@ function renderRegistrationPage() {
               <input id="registration-email" name="email" type="email" placeholder="vous@exemple.fr" required />
             </label>
             <label>
-              Login 42
-              <input id="registration-login-42" name="login_42" type="text" placeholder="login42" />
+              Identifiant 42
+              <input id="registration-login-42" name="login_42" type="text" placeholder="identifiant42" />
             </label>
             <button class="button button-primary" id="registration-submit-button" type="submit">
               Envoyer la demande
@@ -547,7 +547,7 @@ function renderSignupPage() {
               <input id="signup-display-name" name="display_name" type="text" required />
             </label>
             <label for="signup-login-42">
-              Login 42
+              Identifiant 42
               <input id="signup-login-42" name="login_42" type="text" />
             </label>
             <label for="signup-email">
@@ -710,7 +710,7 @@ function renderUserDashboardPage(summary) {
             <span class="subtle-badge">${summary.email || "Email non disponible"}</span>
             ${
               summary.login42
-                ? `<span class="subtle-badge">Login 42 : ${summary.login42}</span>`
+                ? `<span class="subtle-badge">Identifiant 42 : ${summary.login42}</span>`
                 : ""
             }
           </div>
@@ -1228,7 +1228,7 @@ function renderEventsAdminForm() {
         </label>
       </div>
       <label for="events-admin-image-url">
-        Image URL
+        Adresse de l’image
         <input id="events-admin-image-url" name="image_url" type="url" />
       </label>
       <div class="admin-form-actions">
@@ -1253,7 +1253,7 @@ function renderModulesAdminForm() {
           <input id="modules-admin-title" name="title" type="text" required />
         </label>
         <label for="modules-admin-slug">
-          Slug
+          Identifiant d’URL
           <input id="modules-admin-slug" name="slug" type="text" required />
         </label>
       </div>
@@ -3689,7 +3689,7 @@ function renderUsersAdminList(items, searchValue = "") {
                     String(item.id) === String(adminState.selectedUserId) ? "is-selected" : ""
                   }">
                     <div class="card-topline">
-                      <span class="eyebrow eyebrow-tight">Utilisateur</span>
+        <span class="eyebrow eyebrow-tight">Utilisateur</span>
                       <span class="subtle-badge">${escapeHtml(item.roleLabel)}</span>
                     </div>
                     <h3>${escapeHtml(item.displayLabel)}</h3>
@@ -3697,8 +3697,8 @@ function renderUsersAdminList(items, searchValue = "") {
                     <div class="admin-badge-list">
                       ${
                         item.login42
-                          ? `<span class="tag">login42 · ${escapeHtml(item.login42)}</span>`
-                          : `<span class="tag">Sans login 42</span>`
+                          ? `<span class="tag">Identifiant 42 · ${escapeHtml(item.login42)}</span>`
+                          : `<span class="tag">Sans identifiant 42</span>`
                       }
                       <span class="subtle-badge">Créé le ${escapeHtml(item.createdDateLabel)}</span>
                     </div>
@@ -3751,8 +3751,8 @@ function renderSelectedUserAdminPanel() {
             <div class="admin-badge-list">
               ${
                 selectedUser.login42
-                  ? `<span class="tag">login42 · ${escapeHtml(selectedUser.login42)}</span>`
-                  : `<span class="tag">Sans login 42</span>`
+                  ? `<span class="tag">Identifiant 42 · ${escapeHtml(selectedUser.login42)}</span>`
+                  : `<span class="tag">Sans identifiant 42</span>`
               }
               <span class="subtle-badge">Créé le ${escapeHtml(selectedUser.createdDateLabel)}</span>
               <span class="subtle-badge">${formatAdminCount(userCompletions.length, "validation", "validations")}</span>
@@ -3888,7 +3888,7 @@ function renderModulesAdminList(items) {
             <article class="info-card admin-module-card animate-rise">
               <div class="card-topline">
                 <span class="eyebrow eyebrow-tight">Module</span>
-                <span class="subtle-badge">${escapeHtml(item.slug || "sans-slug")}</span>
+                <span class="subtle-badge">${escapeHtml(item.slug || "sans-identifiant")}</span>
               </div>
               <h3>${escapeHtml(item.title)}</h3>
               <p>${escapeHtml(item.shortDescription || "Aucune description courte.")}</p>
@@ -3979,7 +3979,7 @@ function renderModuleCompletionsAdminList(items) {
                   <div class="admin-badge-list">
                     ${
                       item.userLogin42
-                        ? `<span class="tag">login42 · ${escapeHtml(item.userLogin42)}</span>`
+                        ? `<span class="tag">Identifiant 42 · ${escapeHtml(item.userLogin42)}</span>`
                         : ""
                     }
                     <span class="subtle-badge">${escapeHtml(item.completionDateLabel)}</span>
@@ -5773,13 +5773,17 @@ function normalizeAdminUserRecord(item) {
     id: item.id,
     email,
     role,
-    roleLabel: role === "admin" ? "Admin" : "Utilisateur",
+    roleLabel: role === "admin" ? "Administrateur" : "Utilisateur",
     displayName,
     displayLabel: displayName || email,
     login42: item.login_42 ?? "",
     createdAt,
     createdDateLabel: createdAt ? formatSafeDate(createdAt) : "Date inconnue",
-    optionLabel: [displayName || email, email, item.login_42 ? `login42 ${item.login_42}` : null]
+    optionLabel: [
+      displayName || email,
+      email,
+      item.login_42 ? `identifiant 42 ${item.login_42}` : null,
+    ]
       .filter(Boolean)
       .join(" · "),
     searchableText: [displayName, email, item.login_42 ?? "", role].join(" ").toLowerCase(),
@@ -6549,7 +6553,7 @@ function renderUpcomingRegistrationCard(registration) {
         ${
           registration.googleCalendarLink
             ? `<a class="button button-ghost" href="${registration.googleCalendarLink}" target="_blank" rel="noreferrer">
-                Ajouter à Google Calendar
+                Ajouter à l’agenda Google
               </a>`
             : ""
         }
@@ -6866,7 +6870,7 @@ function buildUserPersonalDataExportText({
     "PROFIL",
     `Email : ${summary.email || "Non renseigné"}`,
     `Nom affiché : ${summary.displayName || "Non renseigné"}`,
-    `Login 42 : ${summary.login42 || "Non renseigné"}`,
+    `Identifiant 42 : ${summary.login42 || "Non renseigné"}`,
     `Date de création : ${summary.createdAt ? formatSafeDateTime(summary.createdAt) : "Non disponible"}`,
   ].join("\n"));
 
