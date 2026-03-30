@@ -2,7 +2,7 @@ import {
   modules,
 } from "./data.js";
 import { supabase } from "./supabase-client.js";
-import { SUPABASE_URL } from "./supabase-config.js";
+import { SUPABASE_KEY, SUPABASE_URL } from "./supabase-config.js";
 
 const page = document.body.dataset.page;
 const content = document.getElementById("page-content");
@@ -2977,6 +2977,7 @@ async function invokeDeleteAuthUserFunction(userId) {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
+        apikey: SUPABASE_KEY,
       },
       body: JSON.stringify({ user_id: userId }),
     });
