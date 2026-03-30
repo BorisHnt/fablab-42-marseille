@@ -1003,6 +1003,18 @@ p {
   align-content: start;
 }
 
+.user-account-deletion-form,
+.user-deletion-status-card,
+.admin-deletion-request-grid,
+.admin-deletion-request-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-deletion-request-grid {
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+
 .user-profile-meta,
 .user-actions-row {
   display: flex;
@@ -1016,6 +1028,13 @@ p {
 
 .user-metrics-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.user-deletion-status-card {
+  padding: 1rem;
+  border-radius: 22px;
+  border: 1px solid rgba(31, 35, 37, 0.08);
+  background: rgba(234, 242, 246, 0.45);
 }
 
 .registration-gate {

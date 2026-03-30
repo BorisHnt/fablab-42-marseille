@@ -28,6 +28,7 @@ const adminState = {
   neededEquipment: [],
   events: [],
   users: [],
+  deletionRequests: [],
   selectedUserId: "",
   modules: [],
   sessionModules: [],
@@ -768,6 +769,35 @@ function renderUserDashboardPage(summary) {
         </div>
       </section>
 
+      <section class="section-card animate-rise">
+        ${sectionHeading(
+          "Compte",
+          "Gestion du compte",
+          "Suivez ici vos demandes de suppression et téléchargez une copie simple des données personnelles stockées à votre sujet.",
+        )}
+        <div class="card-grid two-columns">
+          <article class="info-card animate-rise" id="user-account-deletion-panel">
+            <span class="category-badge">Suppression de compte</span>
+            <h3>Chargement de votre demande</h3>
+            <p>Lecture de l’état actuel de votre compte en cours.</p>
+          </article>
+          <article class="info-card animate-rise" id="user-data-export-panel">
+            <span class="subtle-badge">Données personnelles</span>
+            <h3>Télécharger mes données</h3>
+            <p>
+              Générez un fichier texte récapitulant votre profil, vos inscriptions, vos modules
+              validés et vos demandes de suppression.
+            </p>
+            <div class="user-actions-row">
+              <button class="button button-secondary" id="user-download-data-button" type="button">
+                Télécharger mes données (.txt)
+              </button>
+            </div>
+            <p id="user-data-export-message" class="admin-feedback" aria-live="polite"></p>
+          </article>
+        </div>
+      </section>
+
       <section class="section-card animate-rise is-hidden" id="user-cancelled-section">
         ${sectionHeading(
           "Archive",
@@ -885,6 +915,15 @@ function renderAdminPage(userEmail = "") {
             <input id="users-admin-search" type="search" placeholder="Nom, email, login 42" />
           </label>
         `,
+      })}
+
+      ${renderAdminListSection({
+        sectionId: "deletion-requests-admin",
+        eyebrow: "Comptes",
+        title: "Demandes de suppression de compte",
+        text: "Examinez les demandes utilisateur, approuvez-les, refusez-les ou traitez-les via la suppression Auth sécurisée.",
+        listTitle: "Demandes en base",
+        loadingText: "Chargement des demandes de suppression...",
       })}
 
       ${renderAdminCrudSection({
@@ -2056,6 +2095,11 @@ function cacheAdminDom() {
       search: document.getElementById("users-admin-search"),
       modalRoot: document.getElementById("users-admin-modal-root"),
     },
+    deletionRequests: {
+      list: document.getElementById("deletion-requests-admin-list"),
+      count: document.getElementById("deletion-requests-admin-count"),
+      message: document.getElementById("deletion-requests-admin-message"),
+    },
     modules: {
       form: document.getElementById("modules-admin-form"),
       formTitle: document.getElementById("modules-admin-form-title"),
@@ -2129,6 +2173,7 @@ function bindAdminDashboardInteractions() {
   bindNeededEquipmentAdminControls();
   bindEventsAdminControls();
   bindUsersAdminControls();
+  bindDeletionRequestsAdminControls();
   bindModulesAdminControls();
   bindSessionsAdminControls();
   bindModuleCompletionsAdminControls();
@@ -2146,6 +2191,7 @@ async function initializeAdminDashboard() {
     refreshNeededEquipmentSection(),
     refreshEventsAdminSection(),
     refreshUsersAdminSection(),
+    refreshDeletionRequestsAdminSection(),
     refreshModulesAdminCollection(),
     refreshSessionsAdminSection(),
     refreshModuleCompletionsAdminSection(),
@@ -2237,6 +2283,38 @@ function bindUsersAdminControls() {
 
     event.preventDefault();
     await handleUsersAdminModulesFormSubmit(formNode);
+  });
+}
+
+function bindDeletionRequestsAdminControls() {
+  const section = adminDom?.deletionRequests;
+
+  if (!section?.list) {
+    return;
+  }
+
+  section.list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action][data-id]");
+
+    if (!button) {
+      return;
+    }
+
+    const requestId = button.dataset.id;
+
+    if (button.dataset.action === "approve-deletion-request") {
+      await reviewAccountDeletionRequest(requestId, "approved", button);
+      return;
+    }
+
+    if (button.dataset.action === "reject-deletion-request") {
+      await reviewAccountDeletionRequest(requestId, "rejected", button);
+      return;
+    }
+
+    if (button.dataset.action === "process-deletion-request") {
+      await processAccountDeletionRequest(requestId, button);
+    }
   });
 }
 
@@ -2652,6 +2730,42 @@ async function refreshUsersAdminSection() {
   syncModuleCompletionFormOptions();
 }
 
+async function refreshDeletionRequestsAdminSection() {
+  const section = adminDom?.deletionRequests;
+
+  if (!section?.list || !section.count) {
+    return;
+  }
+
+  section.count.textContent = "Chargement...";
+  section.list.innerHTML = renderAdminListLoadingState(
+    "Récupération des demandes de suppression...",
+  );
+
+  const { data, error } = await supabase
+    .from("account_deletion_requests_with_details")
+    .select("*")
+    .order("requested_at", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    adminState.deletionRequests = [];
+    section.count.textContent = "Erreur";
+    section.list.innerHTML = renderAdminErrorState(
+      "Impossible de charger les demandes de suppression pour le moment.",
+    );
+    return;
+  }
+
+  adminState.deletionRequests = (data ?? []).map(normalizeDeletionRequestRecord);
+  section.count.textContent = formatAdminCount(
+    adminState.deletionRequests.length,
+    "demande",
+    "demandes",
+  );
+  section.list.innerHTML = renderDeletionRequestsAdminList(adminState.deletionRequests);
+}
+
 async function refreshModulesAdminCollection(selectedIds = null) {
   const section = adminDom?.sessions;
   const modulesSection = adminDom?.modules;
@@ -3064,6 +3178,126 @@ async function deleteAdminUserRecord(recordId, button) {
 
   setAdminMessage(section.message, "success", "Suppression du compte lancée.");
   await Promise.all([
+    refreshUsersAdminSection(),
+    refreshModuleCompletionsAdminSection(),
+    refreshRegistrationsAdminSection(),
+  ]);
+}
+
+function getDeletionRequestAdminNoteNode(requestId) {
+  return document.querySelector(
+    `[data-deletion-admin-note="${CSS.escape(String(requestId))}"]`,
+  );
+}
+
+async function reviewAccountDeletionRequest(requestId, nextStatus, button) {
+  const section = adminDom?.deletionRequests;
+  const requestRecord = findAdminRecordById(adminState.deletionRequests, requestId);
+
+  if (!section?.message || !requestRecord || !adminSessionUser?.id) {
+    return;
+  }
+
+  const noteNode = getDeletionRequestAdminNoteNode(requestId);
+  const adminNote = normalizeOptionalString(noteNode?.value);
+
+  button.disabled = true;
+  setAdminMessage(section.message);
+
+  const { error } = await supabase
+    .from("account_deletion_requests")
+    .update({
+      status: nextStatus,
+      admin_note: adminNote,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: adminSessionUser.id,
+    })
+    .eq("id", requestId);
+
+  if (error) {
+    setAdminMessage(
+      section.message,
+      "error",
+      error.message || "Impossible de mettre à jour cette demande.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  setAdminMessage(
+    section.message,
+    "success",
+    nextStatus === "approved" ? "Demande approuvée." : "Demande refusée.",
+  );
+  await refreshDeletionRequestsAdminSection();
+}
+
+async function processAccountDeletionRequest(requestId, button) {
+  const section = adminDom?.deletionRequests;
+  const requestRecord = findAdminRecordById(adminState.deletionRequests, requestId);
+
+  if (!section?.message || !requestRecord || !adminSessionUser?.id) {
+    return;
+  }
+
+  if (requestRecord.status !== "approved") {
+    setAdminMessage(
+      section.message,
+      "error",
+      "Seules les demandes approuvées peuvent être traitées.",
+    );
+    return;
+  }
+
+  if (
+    !window.confirm(
+      `Traiter la suppression du compte ${requestRecord.userDisplayLabel} ? Cette action supprimera aussi le compte Auth.`,
+    )
+  ) {
+    return;
+  }
+
+  const noteNode = getDeletionRequestAdminNoteNode(requestId);
+  const adminNote = normalizeOptionalString(noteNode?.value);
+
+  button.disabled = true;
+  setAdminMessage(section.message);
+
+  const { error: deletionError } = await invokeDeleteAuthUserFunction(requestRecord.userId);
+
+  if (deletionError) {
+    setAdminMessage(
+      section.message,
+      "error",
+      buildAdminUserDeletionError(deletionError),
+    );
+    button.disabled = false;
+    return;
+  }
+
+  const { error: updateError } = await supabase
+    .from("account_deletion_requests")
+    .update({
+      status: "processed",
+      admin_note: adminNote,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: adminSessionUser.id,
+    })
+    .eq("id", requestId);
+
+  if (updateError) {
+    setAdminMessage(
+      section.message,
+      "error",
+      updateError.message || "Le compte a été supprimé, mais la demande n’a pas pu être marquée comme traitée.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  setAdminMessage(section.message, "success", "Demande traitée et compte supprimé.");
+  await Promise.all([
+    refreshDeletionRequestsAdminSection(),
     refreshUsersAdminSection(),
     refreshModuleCompletionsAdminSection(),
     refreshRegistrationsAdminSection(),
@@ -3842,6 +4076,102 @@ function renderRegistrationsAdminList(items) {
     ["Inscrit", "Session", "Date", "Statut", "Actions"],
     rows,
   );
+}
+
+function renderDeletionRequestsAdminList(items) {
+  if (!items.length) {
+    return renderAdminEmptyState(
+      "Aucune demande de suppression de compte n’a été déposée pour le moment.",
+    );
+  }
+
+  return `
+    <div class="admin-deletion-request-grid">
+      ${items.map(renderDeletionRequestAdminCard).join("")}
+    </div>
+  `;
+}
+
+function renderDeletionRequestAdminCard(item) {
+  const canReview = item.status !== "processed";
+  const canProcess = item.status === "approved";
+
+  return `
+    <article class="info-card admin-deletion-request-card animate-rise" data-deletion-request-entry>
+      <div class="card-topline">
+        <span class="eyebrow eyebrow-tight">Suppression de compte</span>
+        <span class="subtle-badge">${escapeHtml(item.statusLabel)}</span>
+      </div>
+      <h3>${escapeHtml(item.userDisplayLabel)}</h3>
+      <div class="admin-badge-list">
+        <span class="subtle-badge">${escapeHtml(item.userEmail)}</span>
+        ${
+          item.userLogin42
+            ? `<span class="tag">login42 · ${escapeHtml(item.userLogin42)}</span>`
+            : ""
+        }
+        <span class="subtle-badge">Demandé le ${escapeHtml(item.requestedAtLabel)}</span>
+      </div>
+      ${
+        item.requestNote
+          ? `<p class="session-notes"><strong>Note utilisateur :</strong> ${escapeHtml(item.requestNote)}</p>`
+          : `<p class="session-notes"><strong>Note utilisateur :</strong> Aucune précision fournie.</p>`
+      }
+      ${
+        item.reviewedAtLabel || item.reviewedByLabel
+          ? `<p class="admin-cell-meta">Dernière revue : ${escapeHtml(
+              [item.reviewedAtLabel, item.reviewedByLabel].filter(Boolean).join(" • "),
+            )}</p>`
+          : ""
+      }
+      <label>
+        Note admin
+        <textarea
+          rows="3"
+          data-deletion-admin-note="${escapeHtml(item.id)}"
+          placeholder="Ajoutez un contexte visible dans la demande."
+        >${escapeHtml(item.adminNote)}</textarea>
+      </label>
+      <div class="admin-row-actions">
+        ${
+          canReview
+            ? `
+              <button
+                class="button button-ghost button-small"
+                data-action="approve-deletion-request"
+                data-id="${escapeHtml(item.id)}"
+                type="button"
+              >
+                Approuver
+              </button>
+              <button
+                class="button button-ghost button-small"
+                data-action="reject-deletion-request"
+                data-id="${escapeHtml(item.id)}"
+                type="button"
+              >
+                Refuser
+              </button>
+            `
+            : ""
+        }
+        ${
+          canProcess
+            ? `
+              <button
+                class="button button-danger button-small"
+                data-action="process-deletion-request"
+                data-id="${escapeHtml(item.id)}"
+                type="button"
+              >
+                Traiter
+              </button>
+            `
+            : ""
+        }
+      </div>
+    </article>
+  `;
 }
 
 function renderAdminTable(headers, rowsHtml) {
@@ -5606,6 +5936,78 @@ function renderUserStateCard(label, title, text) {
   `;
 }
 
+function renderUserAccountDeletionPanel(requests) {
+  const latestRequest = requests[0] ?? null;
+  const hasPendingRequest = requests.some((item) => item.status === "pending");
+  const canCreateRequest =
+    !hasPendingRequest &&
+    latestRequest?.status !== "approved" &&
+    latestRequest?.status !== "processed";
+
+  return `
+    <span class="category-badge">Suppression de compte</span>
+    <h3>Demander la suppression du compte</h3>
+    <p>
+      La suppression réelle du compte passe par une validation admin puis un traitement sécurisé.
+      Vous pouvez suivre ici l’état de votre demande.
+    </p>
+    ${
+      latestRequest
+        ? renderUserAccountDeletionStatus(latestRequest)
+        : `<div class="empty-state"><span>Aucune demande enregistrée pour le moment.</span></div>`
+    }
+    ${
+      canCreateRequest
+        ? `
+          <form class="signup-form admin-form user-account-deletion-form" id="user-account-deletion-form">
+            <label for="user-account-deletion-note">
+              Note pour l’équipe
+              <textarea
+                id="user-account-deletion-note"
+                name="request_note"
+                rows="4"
+                placeholder="Expliquez si besoin le contexte de votre demande."
+              ></textarea>
+            </label>
+            <button class="button button-danger" id="user-account-deletion-submit" type="submit">
+              Demander la suppression de mon compte
+            </button>
+          </form>
+        `
+        : ""
+    }
+    <p id="user-account-deletion-message" class="admin-feedback" aria-live="polite"></p>
+  `;
+}
+
+function renderUserAccountDeletionStatus(request) {
+  return `
+    <div class="user-deletion-status-card">
+      <div class="card-topline">
+        <span class="subtle-badge">${escapeHtml(request.statusLabel)}</span>
+        <span>${escapeHtml(request.requestedAtLabel)}</span>
+      </div>
+      ${
+        request.requestNote
+          ? `<p class="session-notes"><strong>Votre note :</strong> ${escapeHtml(request.requestNote)}</p>`
+          : ""
+      }
+      ${
+        request.adminNote
+          ? `<p class="session-notes"><strong>Note admin :</strong> ${escapeHtml(request.adminNote)}</p>`
+          : ""
+      }
+      ${
+        request.reviewedAtLabel
+          ? `<p class="admin-cell-meta">Dernière revue : ${escapeHtml(
+              [request.reviewedAtLabel, request.reviewedByLabel].filter(Boolean).join(" • "),
+            )}</p>`
+          : ""
+      }
+    </div>
+  `;
+}
+
 function renderUpcomingRegistrationCard(registration) {
   return `
     <article class="info-card session-card user-session-card animate-rise">
@@ -5785,7 +6187,7 @@ async function fetchUserProfileRecord(userId) {
 
   return supabase
     .from("profiles")
-    .select("id, email, display_name, login_42, role")
+    .select("id, email, display_name, login_42, role, created_at")
     .eq("id", userId)
     .maybeSingle();
 }
@@ -5833,6 +6235,7 @@ function normalizeUserDashboardSummary(summaryRow, profileRow, sessionUser) {
       profileRow?.login_42 ??
       sessionUser?.user_metadata?.login_42 ??
       "",
+    createdAt: profileRow?.created_at ?? "",
     upcomingRegistrationsCount:
       normalizeOptionalNumber(summaryRow?.upcoming_registrations_count) ?? 0,
     completedModulesCount:
@@ -5888,7 +6291,38 @@ function normalizeCompletedModuleRecord(row) {
     duration: row?.duration ?? row?.module_duration ?? "Durée à confirmer",
     sessionTitle: row?.session_title ?? row?.title_session ?? "",
     sessionDate: row?.session_date ?? row?.date ?? "",
+    completionDate: row?.completion_date ?? "",
+    notes: row?.notes ?? "",
     status: formatRegistrationStatus(row?.status ?? row?.registration_status ?? ""),
+  };
+}
+
+function normalizeDeletionRequestRecord(row) {
+  const status = row?.status ?? "pending";
+  const userEmail = row?.user_email ?? row?.email ?? "Email non renseigné";
+  const userDisplayName = row?.user_display_name ?? row?.display_name ?? "";
+
+  return {
+    id: row?.id ?? "",
+    userId: row?.user_id ?? "",
+    status,
+    statusLabel: formatDeletionRequestStatus(status),
+    requestNote: row?.request_note ?? "",
+    adminNote: row?.admin_note ?? "",
+    requestedAt: row?.requested_at ?? row?.created_at ?? "",
+    requestedAtLabel: row?.requested_at
+      ? formatSafeDateTime(row.requested_at)
+      : row?.created_at
+        ? formatSafeDateTime(row.created_at)
+        : "Date inconnue",
+    reviewedAt: row?.reviewed_at ?? "",
+    reviewedAtLabel: row?.reviewed_at ? formatSafeDateTime(row.reviewed_at) : "",
+    reviewedBy: row?.reviewed_by ?? "",
+    reviewedByLabel:
+      row?.reviewed_by_display_name ?? row?.reviewed_by_email ?? "",
+    userEmail,
+    userDisplayLabel: userDisplayName || userEmail,
+    userLogin42: row?.user_login_42 ?? row?.login_42 ?? "",
   };
 }
 
@@ -5903,6 +6337,116 @@ function formatRegistrationStatus(status) {
   };
 
   return labelMap[status] ?? status ?? "Statut inconnu";
+}
+
+function formatDeletionRequestStatus(status) {
+  const labelMap = {
+    pending: "Demande en attente",
+    approved: "Demande approuvée",
+    rejected: "Demande refusée",
+    processed: "Demande traitée",
+  };
+
+  return labelMap[status] ?? status ?? "Statut inconnu";
+}
+
+function buildUserPersonalDataExportText({
+  summary,
+  registrations,
+  completedModules,
+  deletionRequests,
+}) {
+  const sections = [];
+
+  sections.push([
+    "PROFIL",
+    `Email : ${summary.email || "Non renseigné"}`,
+    `Nom affiché : ${summary.displayName || "Non renseigné"}`,
+    `Login 42 : ${summary.login42 || "Non renseigné"}`,
+    `Date de création : ${summary.createdAt ? formatSafeDateTime(summary.createdAt) : "Non disponible"}`,
+  ].join("\n"));
+
+  sections.push(
+    [
+      "INSCRIPTIONS",
+      registrations.length
+        ? registrations
+            .map((item, index) =>
+              [
+                `${index + 1}. ${item.session_title ?? item.title ?? "Session"}`,
+                `   Date : ${item.session_date ? formatSafeDate(item.session_date) : "Non renseignée"}`,
+                `   Horaires : ${formatTimeRange(
+                  item.start_time ?? item.session_start_time ?? "",
+                  item.end_time ?? item.session_end_time ?? "",
+                ) || "Non renseignés"}`,
+                `   Statut : ${formatRegistrationStatus(item.status)}`,
+                `   Notes : ${item.notes ?? item.session_notes ?? "Aucune"}`,
+              ].join("\n"),
+            )
+            .join("\n\n")
+        : "Aucune inscription enregistrée.",
+    ].join("\n"),
+  );
+
+  sections.push(
+    [
+      "MODULES VALIDÉS",
+      completedModules.length
+        ? completedModules
+            .map((item, index) =>
+              [
+                `${index + 1}. ${item.module_title ?? item.title ?? "Module"}`,
+                `   Date de validation : ${
+                  item.completion_date ? formatSafeDate(item.completion_date) : "Non renseignée"
+                }`,
+                `   Statut : ${formatRegistrationStatus(
+                  item.status ?? item.registration_status ?? "",
+                )}`,
+                `   Session liée : ${item.session_title ?? "Aucune"}`,
+                `   Date de session : ${
+                  item.session_date ? formatSafeDate(item.session_date) : "Non renseignée"
+                }`,
+                `   Notes : ${item.notes ?? "Aucune"}`,
+              ].join("\n"),
+            )
+            .join("\n\n")
+        : "Aucun module validé enregistré.",
+    ].join("\n"),
+  );
+
+  sections.push(
+    [
+      "DEMANDES DE SUPPRESSION",
+      deletionRequests.length
+        ? deletionRequests
+            .map((item, index) =>
+              [
+                `${index + 1}. ${item.requestedAt ? formatSafeDateTime(item.requestedAt) : "Date inconnue"}`,
+                `   Statut : ${formatDeletionRequestStatus(item.status)}`,
+                `   Note utilisateur : ${item.request_note ?? "Aucune"}`,
+                `   Note admin : ${item.admin_note ?? "Aucune"}`,
+                `   Revue le : ${item.reviewed_at ? formatSafeDateTime(item.reviewed_at) : "Non revue"}`,
+              ].join("\n"),
+            )
+            .join("\n\n")
+        : "Aucune demande de suppression enregistrée.",
+    ].join("\n"),
+  );
+
+  return sections.join("\n\n------------------------------\n\n");
+}
+
+function downloadTextFile(filename, contentText) {
+  const blob = new Blob([contentText], { type: "text/plain;charset=utf-8" });
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
 }
 
 function formatModuleCompletionStatus(status) {
@@ -6864,7 +7408,8 @@ async function hydrateUserDashboardPage() {
       upcomingResult,
       calendarResult,
       completedResult,
-      cancelledResult,
+      registrationsResult,
+      deletionRequestsResult,
     ] = await Promise.all([
       supabase.from("my_user_dashboard_summary").select("*").maybeSingle(),
       fetchUserProfileRecord(session.user.id),
@@ -6879,14 +7424,18 @@ async function hydrateUserDashboardPage() {
         .order("session_date", { ascending: true })
         .order("start_time", { ascending: true }),
       supabase
-        .from("my_completed_modules")
+        .from("my_completed_modules_v2")
         .select("*")
         .order("session_date", { ascending: false }),
       supabase
         .from("my_registrations_with_sessions")
         .select("*")
-        .eq("status", "cancelled")
         .order("session_date", { ascending: false }),
+      supabase
+        .from("my_account_deletion_requests")
+        .select("*")
+        .order("requested_at", { ascending: false })
+        .order("created_at", { ascending: false }),
     ]);
 
     if (summaryResult.error && profileResult.error) {
@@ -6918,11 +7467,17 @@ async function hydrateUserDashboardPage() {
       ? []
       : (completedResult.data ?? []).map(normalizeCompletedModuleRecord);
 
-    const cancelledRegistrations = cancelledResult.error
+    const allRegistrations = registrationsResult.error ? [] : (registrationsResult.data ?? []);
+
+    const cancelledRegistrations = registrationsResult.error
       ? []
-      : (cancelledResult.data ?? [])
+      : allRegistrations
           .filter((item) => String(item.status).toLowerCase() === "cancelled")
           .map((item) => normalizeUpcomingRegistrationRecord(item, null));
+
+    const deletionRequests = deletionRequestsResult.error
+      ? []
+      : (deletionRequestsResult.data ?? []).map(normalizeDeletionRequestRecord);
 
     const summary = normalizeUserDashboardSummary(
       summaryResult.data,
@@ -6943,6 +7498,9 @@ async function hydrateUserDashboardPage() {
     const cancelledSection = document.getElementById("user-cancelled-section");
     const dashboardMessageNode = document.getElementById("user-dashboard-message");
     const logoutButton = document.getElementById("user-logout-button");
+    const deletionPanelNode = document.getElementById("user-account-deletion-panel");
+    const exportButton = document.getElementById("user-download-data-button");
+    const exportMessageNode = document.getElementById("user-data-export-message");
 
     if (upcomingNode) {
       if (upcomingResult.error) {
@@ -6989,6 +7547,21 @@ async function hydrateUserDashboardPage() {
       } else {
         cancelledSection.classList.add("is-hidden");
         cancelledNode.innerHTML = "";
+      }
+    }
+
+    if (deletionPanelNode) {
+      if (deletionRequestsResult.error) {
+        deletionPanelNode.innerHTML = `
+          <span class="category-badge">Suppression de compte</span>
+          <h3>Chargement impossible</h3>
+          <p>${
+            deletionRequestsResult.error.message ||
+            "Impossible de charger l’état de votre demande pour le moment."
+          }</p>
+        `;
+      } else {
+        deletionPanelNode.innerHTML = renderUserAccountDeletionPanel(deletionRequests);
       }
     }
 
@@ -7062,6 +7635,83 @@ async function hydrateUserDashboardPage() {
           "Inscription annulée. Vos données sont en cours de mise à jour.",
         );
         await renderDashboard();
+      });
+    }
+
+    const deletionForm = document.getElementById("user-account-deletion-form");
+    const deletionMessageNode = document.getElementById("user-account-deletion-message");
+    const deletionNoteInput = document.getElementById("user-account-deletion-note");
+    const deletionSubmitButton = document.getElementById("user-account-deletion-submit");
+
+    if (deletionForm && deletionMessageNode && deletionSubmitButton) {
+      deletionForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        deletionSubmitButton.disabled = true;
+        deletionSubmitButton.textContent = "Envoi en cours...";
+        setAdminMessage(deletionMessageNode);
+
+        const { error: requestError } = await supabase
+          .from("account_deletion_requests")
+          .insert([
+            {
+              user_id: session.user.id,
+              status: "pending",
+              request_note: normalizeOptionalString(deletionNoteInput?.value),
+            },
+          ]);
+
+        if (requestError) {
+          setAdminMessage(
+            deletionMessageNode,
+            "error",
+            requestError.message || "Impossible de créer la demande de suppression.",
+          );
+          deletionSubmitButton.disabled = false;
+          deletionSubmitButton.textContent = "Demander la suppression de mon compte";
+          return;
+        }
+
+        setAdminMessage(
+          deletionMessageNode,
+          "success",
+          "Demande envoyée. Son état vient d’être mis à jour.",
+        );
+        await renderDashboard();
+      });
+    }
+
+    if (exportButton && exportMessageNode) {
+      exportButton.addEventListener("click", async () => {
+        exportButton.disabled = true;
+        exportButton.textContent = "Préparation du fichier...";
+        setAdminMessage(exportMessageNode);
+
+        try {
+          const exportText = buildUserPersonalDataExportText({
+            summary,
+            registrations: allRegistrations,
+            completedModules: completedResult.data ?? [],
+            deletionRequests: deletionRequestsResult.data ?? [],
+          });
+          downloadTextFile("mes-donnees-fablab.txt", exportText);
+          setAdminMessage(
+            exportMessageNode,
+            "success",
+            "Votre fichier .txt a été généré.",
+          );
+        } catch (downloadError) {
+          setAdminMessage(
+            exportMessageNode,
+            "error",
+            downloadError instanceof Error
+              ? downloadError.message
+              : "Impossible de générer le fichier pour le moment.",
+          );
+        }
+
+        exportButton.disabled = false;
+        exportButton.textContent = "Télécharger mes données (.txt)";
       });
     }
   };
