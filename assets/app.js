@@ -1205,9 +1205,8 @@ function renderEventsAdminForm() {
           <input
             id="events-admin-date"
             name="event_date"
-            type="text"
-            inputmode="numeric"
-            placeholder="31/03/2026"
+            type="date"
+            lang="fr"
             required
           />
         </label>
@@ -1222,9 +1221,9 @@ function renderEventsAdminForm() {
           <input
             id="events-admin-start-time"
             name="start_time"
-            type="text"
-            inputmode="numeric"
-            placeholder="18:00"
+            type="time"
+            lang="fr"
+            step="60"
           />
         </label>
         <label for="events-admin-end-time">
@@ -1232,9 +1231,9 @@ function renderEventsAdminForm() {
           <input
             id="events-admin-end-time"
             name="end_time"
-            type="text"
-            inputmode="numeric"
-            placeholder="19:30"
+            type="time"
+            lang="fr"
+            step="60"
           />
         </label>
       </div>
@@ -1342,9 +1341,8 @@ function renderSessionsAdminForm() {
           <input
             id="sessions-admin-date"
             name="session_date"
-            type="text"
-            inputmode="numeric"
-            placeholder="31/03/2026"
+            type="date"
+            lang="fr"
             required
           />
         </label>
@@ -1359,9 +1357,9 @@ function renderSessionsAdminForm() {
           <input
             id="sessions-admin-start-time"
             name="start_time"
-            type="text"
-            inputmode="numeric"
-            placeholder="18:00"
+            type="time"
+            lang="fr"
+            step="60"
           />
         </label>
         <label for="sessions-admin-end-time">
@@ -1369,9 +1367,9 @@ function renderSessionsAdminForm() {
           <input
             id="sessions-admin-end-time"
             name="end_time"
-            type="text"
-            inputmode="numeric"
-            placeholder="20:00"
+            type="time"
+            lang="fr"
+            step="60"
           />
         </label>
       </div>
@@ -1437,9 +1435,8 @@ function renderModuleCompletionsAdminForm() {
           <input
             id="completions-admin-date"
             name="completion_date"
-            type="text"
-            inputmode="numeric"
-            placeholder="31/03/2026"
+            type="date"
+            lang="fr"
             required
           />
         </label>
@@ -3169,7 +3166,7 @@ function toggleAdminUserModuleFields(container, checkbox) {
   if (dateInput) {
     dateInput.disabled = !checkbox.checked;
     if (checkbox.checked && !dateInput.value) {
-      dateInput.value = formatDateEntry(new Date());
+      dateInput.value = toNativeDateInputValue(new Date());
     }
   }
 
@@ -3854,7 +3851,7 @@ function renderAdminUserDeleteButton(userRecord, label = "Supprimer") {
 function renderAdminUserModuleEditor(moduleItem, completionRecord) {
   const isChecked = Boolean(completionRecord);
   const moduleId = String(moduleItem.id);
-  const dateValue = formatDateEntry(completionRecord?.completionDate ?? "");
+  const dateValue = toNativeDateInputValue(completionRecord?.completionDate ?? "");
   const statusValue = completionRecord?.status ?? "completed";
 
   return `
@@ -3887,9 +3884,8 @@ function renderAdminUserModuleEditor(moduleItem, completionRecord) {
       <td>
         <input
           id="user-module-date-${escapeHtml(moduleId)}"
-          type="text"
-          inputmode="numeric"
-          placeholder="31/03/2026"
+          type="date"
+          lang="fr"
           data-module-date="${escapeHtml(moduleId)}"
           value="${escapeHtml(dateValue)}"
           ${isChecked ? "" : "disabled"}
@@ -5301,7 +5297,7 @@ function populateEventsAdminForm(recordId) {
   section.title.value = record.title;
   section.shortDescription.value = record.shortDescription;
   section.description.value = record.description;
-  section.date.value = formatDateEntry(record.eventDate);
+  section.date.value = toNativeDateInputValue(record.eventDate);
   section.startTime.value = formatTimeEntry(record.startTime);
   section.endTime.value = formatTimeEntry(record.endTime);
   section.location.value = record.location;
@@ -5341,7 +5337,7 @@ function populateSessionsAdminForm(recordId) {
 
   section.id.value = record.id;
   section.title.value = record.title;
-  section.date.value = formatDateEntry(record.sessionDate);
+  section.date.value = toNativeDateInputValue(record.sessionDate);
   section.startTime.value = formatTimeEntry(record.startTime);
   section.endTime.value = formatTimeEntry(record.endTime);
   section.level.value = record.level;
@@ -5365,7 +5361,7 @@ function populateSessionTemplate(recordId) {
 
   section.id.value = "";
   section.title.value = record.title;
-  section.date.value = formatDateEntry(record.sessionDate);
+  section.date.value = toNativeDateInputValue(record.sessionDate);
   section.startTime.value = formatTimeEntry(record.startTime);
   section.endTime.value = formatTimeEntry(record.endTime);
   section.level.value = record.level;
@@ -5396,7 +5392,7 @@ function populateModuleCompletionForm(recordId) {
   section.userId.value = String(record.userId ?? "");
   section.moduleId.value = String(record.moduleId ?? "");
   section.sessionId.value = String(record.sessionId ?? "");
-  section.completionDate.value = formatDateEntry(record.completionDate || "");
+  section.completionDate.value = toNativeDateInputValue(record.completionDate || "");
   section.status.innerHTML = renderModuleCompletionStatusOptions(record.status);
   section.status.value = record.status;
   section.notes.value = record.notes;
@@ -5493,7 +5489,7 @@ function resetModuleCompletionForm({ keepMessage = false } = {}) {
   syncModuleCompletionFormOptions();
 
   if (section.completionDate) {
-    section.completionDate.value = formatDateEntry(new Date());
+    section.completionDate.value = toNativeDateInputValue(new Date());
   }
 
   if (section.status) {
@@ -6046,6 +6042,20 @@ function formatDateEntry(value) {
   }
 
   return normalizedDate ? formatDate(normalizedDate) : "";
+}
+
+function toNativeDateInputValue(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${padNumber(value.getMonth() + 1)}-${padNumber(value.getDate())}`;
+  }
+
+  const normalizedDate = normalizeDateEntry(value);
+
+  if (normalizedDate === null) {
+    return "";
+  }
+
+  return normalizedDate || "";
 }
 
 function normalizeTimeEntry(value) {
