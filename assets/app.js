@@ -1600,7 +1600,7 @@ function renderHomeFeaturedEvent(event) {
     `;
   }
 
-  const normalizedEvent = normalizeEvent(event);
+  const normalizedEvent = normalizeEvent(event, { descriptionMode: "short" });
 
   return `
     <article class="hero-panel hero-panel-primary">
@@ -1700,10 +1700,10 @@ function renderHomeFeatureItems(stats) {
 }
 
 function renderEventCard(event) {
-  return renderNormalizedEventCard(normalizeEvent(event));
+  return renderNormalizedEventCard(normalizeEvent(event, { descriptionMode: "full" }));
 }
 
-function normalizeEvent(event) {
+function normalizeEvent(event, { descriptionMode = "full" } = {}) {
   const startTime = event.start_time ?? event.startTime ?? null;
   const endTime = event.end_time ?? event.endTime ?? null;
   const location = event.location ?? null;
@@ -1724,7 +1724,10 @@ function normalizeEvent(event) {
     category: event.category ?? "Événement",
     date: event.date ?? event.event_date,
     startTime: startTime ?? "",
-    description: event.description ?? event.short_description ?? "",
+    description:
+      descriptionMode === "short"
+        ? event.short_description ?? event.description ?? ""
+        : event.description ?? event.short_description ?? "",
     meta,
     isArchived: isEventArchived(event),
   };
@@ -1862,7 +1865,9 @@ function renderPublicSessionCta(session, { registrationIndex = new Map(), button
 }
 
 function renderHomeAgendaCards(eventsList, sessionsList, registrationIndex = new Map()) {
-  const normalizedEvents = (eventsList ?? []).map(normalizeEvent);
+  const normalizedEvents = (eventsList ?? []).map((item) =>
+    normalizeEvent(item, { descriptionMode: "short" }),
+  );
   const normalizedSessions = (sessionsList ?? []).map(normalizeSession);
   const cards = [
     ...normalizedEvents.map((eventItem) => ({ kind: "event", payload: eventItem })),
