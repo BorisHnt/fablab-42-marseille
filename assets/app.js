@@ -1724,7 +1724,7 @@ function normalizeEvent(event) {
     category: event.category ?? "Événement",
     date: event.date ?? event.event_date,
     startTime: startTime ?? "",
-    description: event.short_description ?? event.description ?? "",
+    description: event.description ?? event.short_description ?? "",
     meta,
     isArchived: isEventArchived(event),
   };
