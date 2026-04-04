@@ -18,6 +18,7 @@ const routeMap = {
   signup: "signup.html",
   login: "login.html",
   account: "mon-espace.html",
+  moderation: "moderation.html",
   admin: "admin.html",
   adminLogin: "admin-login.html",
 };
@@ -39,6 +40,7 @@ const adminState = {
 
 let adminDom = null;
 let adminSessionUser = null;
+let backofficeMode = "admin";
 
 const adminFormLabels = {
   inventory: {
@@ -95,6 +97,7 @@ const publicNavItems = [
   { key: "events", href: routeMap.events, label: "Événements" },
 ];
 
+const moderationNavItem = { key: "moderation", href: routeMap.moderation, label: "Modération" };
 const adminNavItem = { key: "admin", href: routeMap.admin, label: "Admin" };
 
 const pageParent = {
@@ -102,6 +105,7 @@ const pageParent = {
   registration: "sessions",
   signup: "login",
   account: "login",
+  moderation: "moderation",
   "admin-login": "admin",
 };
 
@@ -118,6 +122,7 @@ hydrateSignupPage();
 hydrateLoginPage();
 hydrateUserDashboardPage();
 hydrateAdminLoginPage();
+hydrateModerationPage();
 hydrateAdminPage();
 
 function renderShell() {
@@ -164,8 +169,16 @@ function renderShell() {
   `;
 }
 
-function renderNavLinks(activeKey, isAdmin = false) {
-  const items = isAdmin ? [...publicNavItems, adminNavItem] : publicNavItems;
+function renderNavLinks(activeKey, role = "user") {
+  const items = [...publicNavItems];
+
+  if (role === "moderator" || role === "admin") {
+    items.push(moderationNavItem);
+  }
+
+  if (role === "admin") {
+    items.push(adminNavItem);
+  }
 
   return items
     .map(
@@ -178,10 +191,14 @@ function renderNavLinks(activeKey, isAdmin = false) {
     .join("");
 }
 
-function renderFooterLinks(isAdmin = false) {
+function renderFooterLinks(role = "user") {
   const labels = ["Modules", "Sessions", "Événements"];
 
-  if (isAdmin) {
+  if (role === "moderator" || role === "admin") {
+    labels.push("Modération");
+  }
+
+  if (role === "admin") {
     labels.push("Admin");
   }
 
@@ -211,6 +228,10 @@ function renderPage() {
     case "events":
       document.title = "Événements • Fablab 42 Marseille";
       content.innerHTML = renderEventsPage();
+      break;
+    case "moderation":
+      document.title = "Modération • Fablab 42 Marseille";
+      content.innerHTML = renderModerationLoadingPage();
       break;
     case "signup":
       document.title = "Inscription • Fablab 42 Marseille";
@@ -807,12 +828,16 @@ function renderAdminPage(userEmail = "") {
         )}
         <div class="section-action">
           <span class="subtle-badge admin-user-badge">${userEmail}</span>
+          <span class="subtle-badge">Rôle connecté · Admin</span>
         </div>
       </section>
 
       <section class="admin-session-panel animate-rise">
         <div class="admin-session-copy">
-          <span class="category-badge">Session admin active</span>
+          <div class="admin-badge-list">
+            <span class="category-badge">Session admin active</span>
+            <span class="subtle-badge">Admin</span>
+          </div>
           <h3>${userEmail}</h3>
           <p>
             Ce compte est actuellement connecté à l’interface d’administration du fablab.
@@ -975,16 +1000,129 @@ function renderAdminPage(userEmail = "") {
   `;
 }
 
-function renderAdminSubnav() {
+function renderModerationPage(userEmail = "", roleLabel = "Modérateur") {
+  return `
+    <div class="page-flow">
+      <section class="page-hero animate-rise">
+        ${sectionHeading(
+          "Modération",
+          "Interface de modération du fablab",
+          "Gérez les événements, les sessions et les inscriptions avec une vue claire sur l’activité en cours du fablab.",
+        )}
+        <div class="section-action">
+          <span class="subtle-badge admin-user-badge">${userEmail}</span>
+          <span class="subtle-badge">Rôle connecté · ${escapeHtml(roleLabel)}</span>
+        </div>
+      </section>
+
+      <section class="admin-session-panel animate-rise">
+        <div class="admin-session-copy">
+          <div class="admin-badge-list">
+            <span class="category-badge">Session de modération active</span>
+            <span class="subtle-badge">${escapeHtml(roleLabel)}</span>
+          </div>
+          <h3>${userEmail}</h3>
+          <p>
+            Ce compte est actuellement connecté à l’interface de modération du fablab.
+          </p>
+        </div>
+        <div class="admin-session-actions">
+          <button class="button button-ghost" id="admin-logout-button" type="button">
+            Se déconnecter
+          </button>
+          <p id="admin-logout-message" class="admin-logout-message" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="metrics-grid">
+        <article class="metric-card animate-rise">
+          <strong id="admin-sessions-metric">Chargement des sessions</strong>
+          <span>Les sessions à venir actuellement programmées dans le fablab.</span>
+        </article>
+        <article class="metric-card animate-rise">
+          <strong id="admin-events-metric">Chargement des événements</strong>
+          <span>Les rendez-vous publics à publier, corriger ou archiver.</span>
+        </article>
+        <article class="metric-card animate-rise">
+          <strong id="admin-registrations-metric">Chargement des inscriptions</strong>
+          <span>Le suivi des demandes reçues et des confirmations en cours.</span>
+        </article>
+      </section>
+      ${renderAdminSubnav(backofficeMode)}
+
+      <div class="admin-view-stack">
+        <div class="admin-view-panel" data-admin-view-panel="demandes">
+          ${renderAdminListSection({
+            sectionId: "registrations-admin",
+            eyebrow: "Inscriptions",
+            title: "Demandes reçues",
+            text: "Consultez les inscriptions aux sessions, confirmez-les ou retirez les entrées inutiles.",
+            listTitle: "Inscriptions en base",
+            loadingText: "Chargement des inscriptions...",
+          })}
+        </div>
+
+        <div class="admin-view-panel is-hidden" data-admin-view-panel="programmation">
+          ${renderAdminCrudSection({
+            sectionId: "sessions-admin",
+            eyebrow: "Sessions",
+            title: "Sessions de cours",
+            text: "Créez les sessions, reliez-les aux modules et gardez une lecture claire des places disponibles.",
+            formTitle: "Ajouter une session",
+            listTitle: "Sessions programmées",
+            loadingText: "Chargement des sessions...",
+            formMarkup: renderSessionsAdminForm(),
+            sectionClassName: "section-card-soft",
+          })}
+
+          ${renderAdminCrudSection({
+            sectionId: "events-admin",
+            eyebrow: "Agenda",
+            title: "Événements publiés",
+            text: "Publiez, ajustez ou retirez les événements visibles sur le site public.",
+            formTitle: "Ajouter un événement",
+            listTitle: "Événements en base",
+            loadingText: "Chargement des événements...",
+            formMarkup: renderEventsAdminForm(),
+          })}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAdminSubnav(mode = "admin") {
+  const buttons =
+    mode === "moderation"
+      ? [
+          renderAdminSubnavButton("demandes", "Demandes", "admin-view-count-demandes"),
+          renderAdminSubnavButton(
+            "programmation",
+            "Programmation",
+            "admin-view-count-programmation",
+          ),
+        ]
+      : [
+          renderAdminSubnavButton("demandes", "Demandes", "admin-view-count-demandes"),
+          renderAdminSubnavButton(
+            "programmation",
+            "Programmation",
+            "admin-view-count-programmation",
+          ),
+          renderAdminSubnavButton(
+            "utilisateurs",
+            "Utilisateurs",
+            "admin-view-count-utilisateurs",
+          ),
+          renderAdminSubnavButton("catalogue", "Catalogue", "admin-view-count-catalogue"),
+          renderAdminSubnavButton("logistique", "Logistique", "admin-view-count-logistique"),
+          renderAdminSubnavButton("archives", "Archives"),
+        ];
+
   return `
     <section class="admin-subnav-wrap animate-rise">
       <div class="admin-subnav" id="admin-subnav">
-        ${renderAdminSubnavButton("demandes", "Demandes", "admin-view-count-demandes")}
-        ${renderAdminSubnavButton("programmation", "Programmation", "admin-view-count-programmation")}
-        ${renderAdminSubnavButton("utilisateurs", "Utilisateurs", "admin-view-count-utilisateurs")}
-        ${renderAdminSubnavButton("catalogue", "Catalogue", "admin-view-count-catalogue")}
-        ${renderAdminSubnavButton("logistique", "Logistique", "admin-view-count-logistique")}
-        ${renderAdminSubnavButton("archives", "Archives")}
+        ${buttons.join("")}
       </div>
     </section>
   `;
@@ -1470,6 +1608,18 @@ function renderAdminLoadingPage() {
   `;
 }
 
+function renderModerationLoadingPage() {
+  return `
+    <section class="section-card animate-rise">
+      ${sectionHeading(
+        "Modération",
+        "Vérification de la session",
+        "Contrôle en cours avant l’affichage de l’interface de modération.",
+      )}
+    </section>
+  `;
+}
+
 function renderAdminErrorPage() {
   return `
     <section class="section-card animate-rise">
@@ -1485,6 +1635,21 @@ function renderAdminErrorPage() {
   `;
 }
 
+function renderModerationErrorPage() {
+  return `
+    <section class="section-card animate-rise">
+      ${sectionHeading(
+        "Modération",
+        "Impossible de vérifier la session",
+        "La session du modérateur n’a pas pu être vérifiée pour le moment.",
+      )}
+      <div class="section-action">
+        <a class="button button-primary" href="${buildLoginRedirectHref(routeMap.moderation)}">Retour à la connexion</a>
+      </div>
+    </section>
+  `;
+}
+
 function renderAdminAccessDeniedPage() {
   return `
     <section class="section-card animate-rise">
@@ -1492,6 +1657,22 @@ function renderAdminAccessDeniedPage() {
         "Admin",
         "Accès refusé",
         "Votre session est bien active, mais ce compte ne dispose pas des droits nécessaires pour accéder à l’administration.",
+      )}
+      <div class="section-action">
+        <a class="button button-primary" href="${routeMap.account}">Aller vers mon espace</a>
+        <a class="button button-ghost" href="${routeMap.home}">Retour à l’accueil</a>
+      </div>
+    </section>
+  `;
+}
+
+function renderModerationAccessDeniedPage() {
+  return `
+    <section class="section-card animate-rise">
+      ${sectionHeading(
+        "Modération",
+        "Accès refusé",
+        "Votre session est bien active, mais ce compte ne dispose pas des droits nécessaires pour accéder à la modération.",
       )}
       <div class="section-action">
         <a class="button button-primary" href="${routeMap.account}">Aller vers mon espace</a>
@@ -2260,6 +2441,7 @@ function cacheAdminDom() {
       message: document.getElementById("registrations-admin-message"),
     },
     metrics: {
+      sessions: document.getElementById("admin-sessions-metric"),
       inventory: document.getElementById("admin-inventory-metric"),
       needs: document.getElementById("admin-needs-metric"),
       events: document.getElementById("admin-events-metric"),
@@ -2270,15 +2452,20 @@ function cacheAdminDom() {
 
 function bindAdminDashboardInteractions() {
   bindAdminViewControls();
+  bindEventsAdminControls();
+  bindSessionsAdminControls();
+  bindRegistrationsAdminControls();
+
+  if (backofficeMode !== "admin") {
+    return;
+  }
+
   bindInventoryAdminControls();
   bindNeededEquipmentAdminControls();
-  bindEventsAdminControls();
   bindUsersAdminControls();
   bindDeletionRequestsAdminControls();
   bindModulesAdminControls();
-  bindSessionsAdminControls();
   bindModuleCompletionsAdminControls();
-  bindRegistrationsAdminControls();
 }
 
 async function initializeAdminDashboard() {
@@ -2288,19 +2475,28 @@ async function initializeAdminDashboard() {
 
   applyAdminViewState();
   renderAdminMetrics();
-  await Promise.all([
-    refreshInventorySection(),
-    refreshNeededEquipmentSection(),
+  const tasks = [
     refreshEventsAdminSection(),
-    refreshUsersAdminSection(),
-    refreshDeletionRequestsAdminSection(),
-    refreshModulesAdminCollection(),
     refreshSessionsAdminSection(),
-    refreshModuleCompletionsAdminSection(),
     refreshRegistrationsAdminSection(),
-  ]);
+  ];
 
-  resetModuleCompletionForm({ keepMessage: false });
+  if (backofficeMode === "admin") {
+    tasks.push(
+      refreshInventorySection(),
+      refreshNeededEquipmentSection(),
+      refreshUsersAdminSection(),
+      refreshDeletionRequestsAdminSection(),
+      refreshModulesAdminCollection(),
+      refreshModuleCompletionsAdminSection(),
+    );
+  }
+
+  await Promise.all(tasks);
+
+  if (backofficeMode === "admin") {
+    resetModuleCompletionForm({ keepMessage: false });
+  }
 }
 
 function bindAdminViewControls() {
@@ -2361,6 +2557,11 @@ function bindUsersAdminControls() {
       adminState.selectedUserId = recordId;
       renderUsersAdminSectionList();
       setAdminMessage(section.message);
+      return;
+    }
+
+    if (button.dataset.action === "save-user-role") {
+      await updateAdminUserRole(recordId, button);
       return;
     }
 
@@ -3335,6 +3536,73 @@ async function deleteAdminUserRecord(recordId, button) {
   ]);
 }
 
+function getAdminUserRoleSelectNode(recordId, button) {
+  const scopedNode = button
+    ?.closest(".admin-user-card")
+    ?.querySelector(`[data-user-role-id="${CSS.escape(String(recordId))}"]`);
+
+  if (scopedNode) {
+    return scopedNode;
+  }
+
+  return document.querySelector(`[data-user-role-id="${CSS.escape(String(recordId))}"]`);
+}
+
+async function updateAdminUserRole(recordId, button) {
+  const section = adminDom?.users;
+  const record = findAdminRecordById(adminState.users, recordId);
+  const roleSelect = getAdminUserRoleSelectNode(recordId, button);
+
+  if (!section?.message || !record || !roleSelect) {
+    return;
+  }
+
+  if (record.role === "admin") {
+    setAdminMessage(
+      section.message,
+      "error",
+      "Le rôle Admin ne peut pas être modifié depuis cette interface.",
+    );
+    return;
+  }
+
+  const nextRole = roleSelect.value === "moderator" ? "moderator" : "user";
+
+  if (nextRole === record.role) {
+    setAdminMessage(section.message, "success", "Aucune modification à enregistrer.");
+    return;
+  }
+
+  button.disabled = true;
+  roleSelect.disabled = true;
+  setAdminMessage(section.message);
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ role: nextRole })
+    .eq("id", recordId);
+
+  if (error) {
+    setAdminMessage(
+      section.message,
+      "error",
+      error.message || "Impossible de mettre à jour le rôle de cet utilisateur.",
+    );
+    button.disabled = false;
+    roleSelect.disabled = false;
+    return;
+  }
+
+  setAdminMessage(
+    section.message,
+    "success",
+    nextRole === "moderator"
+      ? "Le rôle Modérateur a été attribué."
+      : "Le rôle Utilisateur a été rétabli.",
+  );
+  await refreshUsersAdminSection();
+}
+
 function getDeletionRequestAdminNoteNode(requestId) {
   return document.querySelector(
     `[data-deletion-admin-note="${CSS.escape(String(requestId))}"]`,
@@ -3707,6 +3975,7 @@ function renderUsersAdminList(items, searchValue = "") {
                       }
                       <span class="subtle-badge">Créé le ${escapeHtml(item.createdDateLabel)}</span>
                     </div>
+                    ${renderAdminUserRoleManager(item)}
                     <div class="admin-row-actions">
                       <button class="button button-ghost button-small" data-action="select-user" data-id="${escapeHtml(item.id)}" type="button">
                         Options
@@ -3828,6 +4097,40 @@ function renderAdminUserDeleteButton(userRecord, label = "Supprimer") {
     <button class="button button-danger button-small" data-action="delete-user" data-id="${escapeHtml(userRecord.id)}" type="button">
       ${escapeHtml(label)}
     </button>
+  `;
+}
+
+function renderAdminUserRoleManager(userRecord) {
+  if (!userRecord || userRecord.role === "admin") {
+    return `
+      <div class="admin-user-role-row">
+        <span class="subtle-badge">Rôle protégé · Admin</span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="admin-user-role-row">
+      <label class="admin-user-role-field" for="user-role-${escapeHtml(userRecord.id)}">
+        Rôle
+        <select
+          class="admin-inline-select"
+          id="user-role-${escapeHtml(userRecord.id)}"
+          data-user-role-id="${escapeHtml(userRecord.id)}"
+        >
+          <option value="user" ${userRecord.role === "user" ? "selected" : ""}>Utilisateur</option>
+          <option value="moderator" ${userRecord.role === "moderator" ? "selected" : ""}>Modérateur</option>
+        </select>
+      </label>
+      <button
+        class="button button-secondary button-small"
+        data-action="save-user-role"
+        data-id="${escapeHtml(userRecord.id)}"
+        type="button"
+      >
+        Enregistrer
+      </button>
+    </div>
   `;
 }
 
@@ -4647,6 +4950,14 @@ function renderAdminMetrics() {
     return;
   }
 
+  if (adminDom.metrics.sessions) {
+    adminDom.metrics.sessions.textContent = formatAdminCount(
+      adminState.sessions.filter((item) => !isSessionArchived(item)).length,
+      "session programmée",
+      "sessions programmées",
+    );
+  }
+
   if (adminDom.metrics.inventory) {
     adminDom.metrics.inventory.textContent = formatAdminCount(
       adminState.inventory.length,
@@ -4698,11 +5009,6 @@ function renderAdminViewCounts() {
   ).length;
   const currentSessionsCount = adminState.sessions.filter((item) => !isSessionArchived(item)).length;
   const currentEventsCount = adminState.events.filter((item) => !isEventArchived(item)).length;
-  const archivedSessionsCount = adminState.sessions.filter((item) => isSessionArchived(item)).length;
-  const archivedEventsCount = adminState.events.filter((item) => isEventArchived(item)).length;
-  const handledDeletionRequestsCount = adminState.deletionRequests.filter(
-    (item) => item.status !== "pending",
-  ).length;
 
   if (views.demandesCount) {
     views.demandesCount.textContent = String(
@@ -4714,25 +5020,17 @@ function renderAdminViewCounts() {
     views.programmationCount.textContent = String(currentSessionsCount + currentEventsCount);
   }
 
-  if (views.utilisateursCount) {
+  if (backofficeMode === "admin" && views.utilisateursCount) {
     views.utilisateursCount.textContent = String(adminState.users.length);
   }
 
-  if (views.catalogueCount) {
+  if (backofficeMode === "admin" && views.catalogueCount) {
     views.catalogueCount.textContent = String(adminState.modules.length);
   }
 
-  if (views.logistiqueCount) {
+  if (backofficeMode === "admin" && views.logistiqueCount) {
     views.logistiqueCount.textContent = String(
       adminState.inventory.length + adminState.neededEquipment.length,
-    );
-  }
-
-  if (views.archivesCount) {
-    views.archivesCount.textContent = String(
-      archivedSessionsCount +
-        archivedEventsCount +
-        handledDeletionRequestsCount,
     );
   }
 }
@@ -5778,7 +6076,8 @@ function normalizeAdminUserRecord(item) {
     id: item.id,
     email,
     role,
-    roleLabel: role === "admin" ? "Administrateur" : "Utilisateur",
+    roleLabel:
+      role === "admin" ? "Administrateur" : role === "moderator" ? "Modérateur" : "Utilisateur",
     displayName,
     displayLabel: displayName || email,
     login42: item.login_42 ?? "",
@@ -6691,6 +6990,10 @@ async function resolvePostLoginDestination(userId, fallback = routeMap.account) 
     return routeMap.admin;
   }
 
+  if (profile?.role === "moderator") {
+    return routeMap.moderation;
+  }
+
   return fallback;
 }
 
@@ -7418,10 +7721,10 @@ async function hydrateAuthNavigation() {
 
   if (error || !session) {
     if (navLinks) {
-      navLinks.innerHTML = renderNavLinks(activeKey, false);
+      navLinks.innerHTML = renderNavLinks(activeKey, "user");
     }
     if (footerLinks) {
-      footerLinks.innerHTML = renderFooterLinks(false);
+      footerLinks.innerHTML = renderFooterLinks("user");
     }
     authLink.href = routeMap.login;
     authLink.textContent = "Connexion";
@@ -7429,13 +7732,13 @@ async function hydrateAuthNavigation() {
   }
 
   const { data: profile } = await fetchUserProfileRecord(session.user.id);
-  const isAdmin = profile?.role === "admin";
+  const role = profile?.role ?? "user";
 
   if (navLinks) {
-    navLinks.innerHTML = renderNavLinks(activeKey, isAdmin);
+    navLinks.innerHTML = renderNavLinks(activeKey, role);
   }
   if (footerLinks) {
-    footerLinks.innerHTML = renderFooterLinks(isAdmin);
+    footerLinks.innerHTML = renderFooterLinks(role);
   }
 
   authLink.href = routeMap.account;
@@ -8226,6 +8529,52 @@ async function hydrateAdminLoginPage() {
   window.location.replace(buildLoginRedirectHref(routeMap.admin));
 }
 
+async function hydrateModerationPage() {
+  if (page !== "moderation") {
+    return;
+  }
+
+  const { session, error } = await getCurrentSupabaseSession();
+
+  if (error) {
+    content.innerHTML = renderModerationErrorPage();
+    return;
+  }
+
+  if (!session) {
+    window.location.href = buildLoginRedirectHref(routeMap.moderation);
+    return;
+  }
+
+  const { data: profile, error: profileError } = await fetchUserProfileRecord(session.user.id);
+
+  if (profileError) {
+    content.innerHTML = renderModerationErrorPage();
+    return;
+  }
+
+  if (!["admin", "moderator"].includes(profile?.role ?? "user")) {
+    content.innerHTML = renderModerationAccessDeniedPage();
+    window.setTimeout(() => {
+      window.location.href = routeMap.account;
+    }, 1800);
+    return;
+  }
+
+  backofficeMode = "moderation";
+  adminState.currentView = "demandes";
+  adminSessionUser = session.user;
+
+  const roleLabel = profile?.role === "admin" ? "Admin" : "Modérateur";
+  const userEmail = session.user?.email ?? `${roleLabel} connecté`;
+
+  content.innerHTML = renderModerationPage(userEmail, roleLabel);
+  cacheAdminDom();
+  bindAdminDashboardInteractions();
+  bindBackofficeLogout();
+  await initializeAdminDashboard();
+}
+
 async function hydrateAdminPage() {
   if (page !== "admin") {
     return;
@@ -8259,43 +8608,49 @@ async function hydrateAdminPage() {
   if (profile?.role !== "admin") {
     content.innerHTML = renderAdminAccessDeniedPage();
     window.setTimeout(() => {
-      window.location.href = routeMap.account;
+      window.location.href = profile?.role === "moderator" ? routeMap.moderation : routeMap.account;
     }, 1800);
     return;
   }
 
+  backofficeMode = "admin";
+  adminState.currentView = "demandes";
   const userEmail = session.user?.email ?? "Administrateur connecté";
   adminSessionUser = session.user;
   content.innerHTML = renderAdminPage(userEmail);
   cacheAdminDom();
   bindAdminDashboardInteractions();
+  bindBackofficeLogout();
+  await initializeAdminDashboard();
+}
 
+function bindBackofficeLogout() {
   const logoutButton = document.getElementById("admin-logout-button");
   const logoutMessage = document.getElementById("admin-logout-message");
 
-  if (logoutButton && logoutMessage) {
-    logoutButton.addEventListener("click", async () => {
-      logoutButton.disabled = true;
-      logoutButton.textContent = "Déconnexion...";
-      logoutMessage.textContent = "";
-      delete logoutMessage.dataset.state;
-
-      const { error: signOutError } = await supabase.auth.signOut();
-
-      if (signOutError) {
-        logoutMessage.dataset.state = "error";
-        logoutMessage.textContent =
-          signOutError.message || "La déconnexion a échoué. Réessayez.";
-        logoutButton.disabled = false;
-        logoutButton.textContent = "Se déconnecter";
-        return;
-      }
-
-      logoutMessage.dataset.state = "success";
-      logoutMessage.textContent = "Déconnexion en cours...";
-      window.location.href = routeMap.login;
-    });
+  if (!logoutButton || !logoutMessage) {
+    return;
   }
 
-  await initializeAdminDashboard();
+  logoutButton.addEventListener("click", async () => {
+    logoutButton.disabled = true;
+    logoutButton.textContent = "Déconnexion...";
+    logoutMessage.textContent = "";
+    delete logoutMessage.dataset.state;
+
+    const { error: signOutError } = await supabase.auth.signOut();
+
+    if (signOutError) {
+      logoutMessage.dataset.state = "error";
+      logoutMessage.textContent =
+        signOutError.message || "La déconnexion a échoué. Réessayez.";
+      logoutButton.disabled = false;
+      logoutButton.textContent = "Se déconnecter";
+      return;
+    }
+
+    logoutMessage.dataset.state = "success";
+    logoutMessage.textContent = "Déconnexion en cours...";
+    window.location.href = routeMap.login;
+  });
 }
