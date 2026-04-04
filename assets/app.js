@@ -3953,7 +3953,7 @@ function renderNeededEquipmentAdminList(items) {
             <strong>${escapeHtml(item.itemName)}</strong>
             ${
               item.note
-                ? `<div class="admin-cell-meta admin-multiline-text">${escapeHtml(item.note)}</div>`
+                ? `<div class="admin-cell-meta admin-multiline-text">${escapeHtmlWithLineBreaks(item.note)}</div>`
                 : ""
             }
           </td>
@@ -6502,6 +6502,10 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function escapeHtmlWithLineBreaks(value) {
+  return escapeHtml(value).replace(/\r?\n/g, "<br />");
 }
 
 function maskSensitiveValue(value) {
