@@ -7488,7 +7488,7 @@ function renderProjectFormModal(project = null) {
   const submitLabel = isEditing ? "Enregistrer les changements" : "Créer le projet";
 
   return `
-    <div class="admin-modal-backdrop" data-project-action="close-modal">
+    <div class="admin-modal-backdrop">
       <article class="admin-panel admin-user-modal project-modal" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
         <div class="admin-panel-head admin-panel-head-start">
           <div class="admin-completion-copy">
