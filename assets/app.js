@@ -12,6 +12,7 @@ const params = new URLSearchParams(window.location.search);
 
 const routeMap = {
   home: "index.html",
+  projects: "projets.html",
   modules: "modules.html",
   sessions: "sessions.html",
   events: "evenements.html",
@@ -36,6 +37,17 @@ const adminState = {
   sessions: [],
   registrations: [],
   moduleCompletions: [],
+};
+
+const projectsState = {
+  currentView: "proposed",
+  session: null,
+  profile: null,
+  proposedProjects: [],
+  myProjects: [],
+  myMemberships: [],
+  myRequests: [],
+  allRequests: [],
 };
 
 let adminDom = null;
@@ -92,6 +104,7 @@ const moduleCompletionStatusOptions = [
 
 const publicNavItems = [
   { key: "home", href: routeMap.home, label: "Accueil" },
+  { key: "projects", href: routeMap.projects, label: "Projets" },
   { key: "modules", href: routeMap.modules, label: "Modules" },
   { key: "sessions", href: routeMap.sessions, label: "Sessions" },
   { key: "events", href: routeMap.events, label: "Événements" },
@@ -115,6 +128,7 @@ bindInteractions();
 hydrateAuthNavigation();
 hydrateEventsPage();
 hydrateHomePageData();
+hydrateProjectsPage();
 hydrateSessionsPage();
 hydrateRegistrationPage();
 hydrateModuleDetailSessions();
@@ -192,7 +206,7 @@ function renderNavLinks(activeKey, role = "user") {
 }
 
 function renderFooterLinks(role = "user") {
-  const labels = ["Modules", "Sessions", "Événements"];
+  const labels = ["Projets", "Modules", "Sessions", "Événements"];
 
   if (role === "moderator" || role === "admin") {
     labels.push("Modération");
@@ -210,6 +224,10 @@ function renderPage() {
     case "home":
       document.title = "Fablab 42 Marseille";
       content.innerHTML = renderHomePage();
+      break;
+    case "projects":
+      document.title = "Projets • Fablab 42 Marseille";
+      content.innerHTML = renderProjectsPage();
       break;
     case "modules":
       document.title = "Modules • Fablab 42 Marseille";
@@ -316,6 +334,77 @@ function renderHomePage() {
         </div>
       </section>
     </div>
+  `;
+}
+
+function renderProjectsPage() {
+  return `
+    <div class="page-flow" id="projects-page-root">
+      <section class="page-hero animate-rise">
+        ${sectionHeading(
+          "Communauté",
+          "Projets du fablab",
+          "Proposez un projet à fabriquer, rejoignez une équipe existante et suivez les demandes de participation dans un espace simple et lisible.",
+        )}
+      </section>
+
+      <section class="admin-subnav-wrap animate-rise">
+        <div class="admin-subnav" id="projects-subnav">
+          <button class="admin-subnav-button active" data-project-view="proposed" type="button">
+            <span>Projets proposés</span>
+          </button>
+          <button class="admin-subnav-button" data-project-view="mine" type="button">
+            <span>Mes projets</span>
+          </button>
+        </div>
+      </section>
+
+      <p id="projects-page-message" class="admin-feedback" aria-live="polite"></p>
+
+      <div class="projects-view-stack">
+        <section class="section-card animate-rise" data-project-view-panel="proposed">
+          ${sectionHeading(
+            "Ouverts",
+            "Projets proposés",
+            "Retrouvez ici les idées déjà lancées dans le fablab, leur équipe actuelle et le coût estimé pour avancer ensemble.",
+          )}
+          <div class="card-grid two-columns" id="projects-proposed-grid">
+            ${renderProjectsLoadingState("Chargement des projets proposés...")}
+          </div>
+        </section>
+
+        <section class="section-card section-card-soft animate-rise is-hidden" data-project-view-panel="mine">
+          <div class="projects-header-row">
+            ${sectionHeading(
+              "Gestion",
+              "Mes projets",
+              "Créez un projet, ajustez son cadrage et répondez aux demandes de participation de votre équipe.",
+            )}
+            <div class="section-action">
+              <button class="button button-primary" id="projects-new-button" type="button">
+                Nouveau projet
+              </button>
+            </div>
+          </div>
+
+          <div class="card-grid two-columns" id="projects-my-grid">
+            ${renderProjectsLoadingState("Chargement de vos projets...")}
+          </div>
+
+          <div class="section-card projects-memberships-section">
+            ${sectionHeading(
+              "Participation",
+              "Projets que je rejoins",
+              "Suivez ici vos demandes en attente et les projets auxquels vous participez déjà.",
+            )}
+            <div class="card-grid two-columns" id="projects-memberships-grid">
+              ${renderProjectsLoadingState("Chargement de vos participations...")}
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+    <div id="projects-modal-root"></div>
   `;
 }
 
@@ -6903,6 +6992,1243 @@ function renderCompletedModuleCard(moduleItem) {
       }
     </article>
   `;
+}
+
+function renderProjectsLoadingState(text = "Chargement des projets...") {
+  return `
+    <article class="info-card project-card animate-rise">
+      <div class="card-topline">
+        <span class="eyebrow eyebrow-tight">Projets</span>
+        <span>Chargement</span>
+      </div>
+      <h3>Récupération en cours</h3>
+      <p>${text}</p>
+    </article>
+  `;
+}
+
+function renderProjectsEmptyState(title, text) {
+  return `
+    <article class="info-card project-card animate-rise">
+      <div class="card-topline">
+        <span class="eyebrow eyebrow-tight">Projets</span>
+        <span>Vide</span>
+      </div>
+      <h3>${title}</h3>
+      <p>${text}</p>
+    </article>
+  `;
+}
+
+function renderProjectsErrorState(title, text) {
+  return `
+    <article class="info-card project-card animate-rise">
+      <div class="card-topline">
+        <span class="eyebrow eyebrow-tight">Projets</span>
+        <span>Erreur</span>
+      </div>
+      <h3>${title}</h3>
+      <p>${text}</p>
+    </article>
+  `;
+}
+
+function renderProjectsAuthGateCard(title, text) {
+  return `
+    <article class="info-card project-card animate-rise">
+      <div class="card-topline">
+        <span class="eyebrow eyebrow-tight">Projets</span>
+        <span>Connexion requise</span>
+      </div>
+      <h3>${title}</h3>
+      <p>${text}</p>
+      <div class="user-actions-row">
+        <a class="button button-primary" href="${buildLoginRedirectHref(getCurrentRelativeUrl())}">
+          Se connecter
+        </a>
+        <a class="button button-ghost" href="${buildSignupRedirectHref(getCurrentRelativeUrl())}">
+          Créer un compte
+        </a>
+      </div>
+    </article>
+  `;
+}
+
+function normalizeProjectRecord(item, fallbackOwner = {}) {
+  const acceptedMembersCount =
+    normalizeOptionalNumber(item.accepted_members_count ?? item.acceptedMembersCount) ?? 0;
+  const pendingMembersCount =
+    normalizeOptionalNumber(item.pending_members_count ?? item.pendingMembersCount) ?? 0;
+  const estimatedTotalPrice = normalizeOptionalNumber(
+    item.estimated_total_price ?? item.estimatedTotalPrice,
+  );
+  const maxPeople = normalizeOptionalNumber(item.max_people ?? item.maxPeople);
+  const minPeople = normalizeOptionalNumber(item.min_people ?? item.minPeople);
+  const ownerLogin42 = item.owner_login_42 ?? item.ownerLogin42 ?? fallbackOwner.login42 ?? "";
+  const ownerDisplayName =
+    item.owner_display_name ?? item.ownerDisplayName ?? fallbackOwner.displayName ?? "";
+  const ownerEmail = item.owner_email ?? item.ownerEmail ?? fallbackOwner.email ?? "";
+  const ownerLabel = ownerLogin42 || ownerDisplayName || ownerEmail || "membre du fablab";
+  const isOpen = item.is_open !== false;
+
+  return {
+    id: item.id,
+    title: item.title ?? "Projet",
+    description: item.description ?? "",
+    requiredMaterials: item.required_materials ?? item.requiredMaterials ?? "",
+    estimatedTotalPrice,
+    estimatedTotalPriceLabel: estimatedTotalPrice !== null ? formatCurrency(estimatedTotalPrice) : "",
+    minPeople,
+    maxPeople,
+    estimatedDuration: item.estimated_duration ?? item.estimatedDuration ?? "",
+    createdBy: item.created_by ?? item.createdBy ?? "",
+    isOpen,
+    createdAt: item.created_at ?? item.createdAt ?? "",
+    updatedAt: item.updated_at ?? item.updatedAt ?? "",
+    acceptedMembersCount,
+    pendingMembersCount,
+    ownerLogin42,
+    ownerDisplayName,
+    ownerEmail,
+    ownerLabel,
+    isFull: maxPeople !== null && acceptedMembersCount >= maxPeople,
+    createdDateLabel: item.created_at ? formatSafeDate(item.created_at) : "",
+  };
+}
+
+function normalizeProjectMembershipRecord(item) {
+  return {
+    id: item.id,
+    projectId: item.project_id ?? item.projectId ?? "",
+    userId: item.user_id ?? item.userId ?? "",
+    status: item.status ?? "pending",
+    statusLabel: formatProjectMembershipStatus(item.status ?? "pending"),
+    projectTitle: item.project_title ?? item.title ?? "Projet",
+    projectOwnerId: item.project_owner_id ?? item.projectOwnerId ?? "",
+    isOpen: item.is_open !== false,
+    maxPeople: normalizeOptionalNumber(item.max_people ?? item.maxPeople),
+    createdAt: item.created_at ?? item.createdAt ?? "",
+    createdLabel: item.created_at ? formatSafeDate(item.created_at) : "",
+    userDisplayLabel:
+      item.user_login_42 ??
+      item.user_display_name ??
+      item.user_email ??
+      "Participant",
+    userLogin42: item.user_login_42 ?? "",
+    userEmail: item.user_email ?? "",
+    userDisplayName: item.user_display_name ?? "",
+  };
+}
+
+function formatCurrency(value) {
+  const parsed = normalizeOptionalNumber(value);
+
+  if (parsed === null) {
+    return "";
+  }
+
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 2,
+  }).format(parsed);
+}
+
+function formatProjectMembershipStatus(status) {
+  switch (status) {
+    case "accepted":
+      return "Participation confirmée";
+    case "rejected":
+      return "Demande refusée";
+    case "pending":
+    default:
+      return "Demande envoyée";
+  }
+}
+
+function renderProjectStatusBadge(project) {
+  if (!project.isOpen) {
+    return "Projet fermé";
+  }
+
+  if (project.isFull) {
+    return "Équipe complète";
+  }
+
+  return "Projet ouvert";
+}
+
+function calculateProjectPricePerPerson(project) {
+  if (project.estimatedTotalPrice === null) {
+    return "";
+  }
+
+  if (project.acceptedMembersCount > 0) {
+    return `≈ ${formatCurrency(project.estimatedTotalPrice / project.acceptedMembersCount)} / personne`;
+  }
+
+  if (project.maxPeople) {
+    return `Si vous êtes ${project.maxPeople} : ≈ ${formatCurrency(
+      project.estimatedTotalPrice / project.maxPeople,
+    )} / personne`;
+  }
+
+  return "";
+}
+
+function canManageProject(project) {
+  const currentUserId = projectsState.session?.user?.id ?? "";
+  const currentRole = projectsState.profile?.role ?? "user";
+
+  return currentRole === "admin" || String(project.createdBy) === String(currentUserId);
+}
+
+function getProjectMembershipRecord(projectId) {
+  return projectsState.myMemberships.find(
+    (item) => String(item.projectId) === String(projectId),
+  );
+}
+
+function getProjectRequestRecords(projectId) {
+  return projectsState.allRequests.filter(
+    (item) => String(item.projectId) === String(projectId),
+  );
+}
+
+function renderProjectMeta(project) {
+  const meta = [];
+
+  if (project.estimatedTotalPriceLabel) {
+    meta.push(`<span class="inline-detail">Budget total · ${escapeHtml(project.estimatedTotalPriceLabel)}</span>`);
+  }
+
+  const perPersonLabel = calculateProjectPricePerPerson(project);
+  if (perPersonLabel) {
+    meta.push(`<span class="inline-detail">${escapeHtml(perPersonLabel)}</span>`);
+  }
+
+  if (project.minPeople !== null || project.maxPeople !== null) {
+    meta.push(
+      `<span class="inline-detail">Équipe · ${escapeHtml(
+        [project.minPeople ? `${project.minPeople} min` : "", project.maxPeople ? `${project.maxPeople} max` : ""]
+          .filter(Boolean)
+          .join(" / "),
+      )}</span>`,
+    );
+  }
+
+  if (project.estimatedDuration) {
+    meta.push(`<span class="inline-detail">Durée · ${escapeHtml(project.estimatedDuration)}</span>`);
+  }
+
+  meta.push(
+    `<span class="inline-detail">${project.acceptedMembersCount} participant${
+      project.acceptedMembersCount > 1 ? "s" : ""
+    } confirmé${project.acceptedMembersCount > 1 ? "s" : ""}</span>`,
+  );
+  meta.push(
+    `<span class="inline-detail">${project.pendingMembersCount} demande${
+      project.pendingMembersCount > 1 ? "s" : ""
+    } en attente</span>`,
+  );
+
+  return meta.join("");
+}
+
+function renderProjectCta(project) {
+  const membership = getProjectMembershipRecord(project.id);
+  const currentUserId = projectsState.session?.user?.id ?? "";
+
+  if (!projectsState.session) {
+    return `
+      <a class="button button-primary button-block" href="${buildLoginRedirectHref(routeMap.projects)}">
+        Se connecter pour participer
+      </a>
+    `;
+  }
+
+  if (String(project.createdBy) === String(currentUserId)) {
+    return `
+      <div class="project-cta-stack">
+        <span class="subtle-badge">Vous êtes à l’origine de ce projet</span>
+        <button class="button button-ghost button-block" data-project-view-target="mine" type="button">
+          Gérer ce projet
+        </button>
+      </div>
+    `;
+  }
+
+  if (membership?.status === "accepted") {
+    return `
+      <div class="project-cta-stack">
+        <span class="subtle-badge">Vous participez déjà</span>
+        <button
+          class="button button-danger button-block"
+          data-project-action="leave-membership"
+          data-membership-id="${escapeHtml(membership.id)}"
+          type="button"
+        >
+          Quitter le projet
+        </button>
+      </div>
+    `;
+  }
+
+  if (membership?.status === "pending") {
+    return `
+      <div class="project-cta-stack">
+        <span class="subtle-badge">Demande déjà envoyée</span>
+        <button
+          class="button button-danger button-block"
+          data-project-action="leave-membership"
+          data-membership-id="${escapeHtml(membership.id)}"
+          type="button"
+        >
+          Retirer ma demande
+        </button>
+      </div>
+    `;
+  }
+
+  if (membership?.status === "rejected") {
+    return `<span class="subtle-badge">Demande refusée</span>`;
+  }
+
+  if (!project.isOpen) {
+    return `<span class="subtle-badge">Projet fermé</span>`;
+  }
+
+  if (project.isFull) {
+    return `<span class="subtle-badge">Équipe complète</span>`;
+  }
+
+  return `
+    <button
+      class="button button-primary button-block"
+      data-project-action="join"
+      data-project-id="${escapeHtml(project.id)}"
+      type="button"
+    >
+      Rejoindre
+    </button>
+  `;
+}
+
+function renderPublicProjectCard(project) {
+  return `
+    <article class="info-card project-card animate-rise">
+      <div class="card-topline">
+        <span class="eyebrow eyebrow-tight">Projet proposé</span>
+        <span>${escapeHtml(renderProjectStatusBadge(project))}</span>
+      </div>
+      <h3>${escapeHtml(project.title)}</h3>
+      <p>${escapeHtml(project.description || "Description à compléter.")}</p>
+      ${
+        project.requiredMaterials
+          ? `<p class="session-notes"><strong>Matériel nécessaire :</strong> ${escapeHtml(
+              project.requiredMaterials,
+            )}</p>`
+          : ""
+      }
+      <p class="project-owner-line">Projet proposé par <strong>${escapeHtml(project.ownerLabel)}</strong></p>
+      <div class="session-meta project-meta-grid">
+        ${renderProjectMeta(project)}
+      </div>
+      ${renderProjectCta(project)}
+    </article>
+  `;
+}
+
+function renderProjectRequestRow(request, project) {
+  const canAccept = !project.isFull || request.status === "accepted";
+  const displayLabel =
+    request.userLogin42 || request.userDisplayName || request.userEmail || "Participant";
+
+  return `
+    <div class="project-request-row">
+      <div>
+        <strong>${escapeHtml(displayLabel)}</strong>
+        <div class="admin-cell-meta">
+          ${escapeHtml(request.statusLabel)}
+          ${request.createdLabel ? ` · ${escapeHtml(request.createdLabel)}` : ""}
+        </div>
+      </div>
+      <div class="admin-row-actions">
+        ${
+          request.status !== "accepted"
+            ? `
+              <button
+                class="button button-secondary button-small"
+                data-project-action="accept-request"
+                data-request-id="${escapeHtml(request.id)}"
+                ${canAccept ? "" : "disabled"}
+                type="button"
+              >
+                Accepter
+              </button>
+            `
+            : ""
+        }
+        ${
+          request.status !== "rejected"
+            ? `
+              <button
+                class="button button-ghost button-small"
+                data-project-action="reject-request"
+                data-request-id="${escapeHtml(request.id)}"
+                type="button"
+              >
+                Refuser
+              </button>
+            `
+            : ""
+        }
+        <button
+          class="button button-danger button-small"
+          data-project-action="remove-request"
+          data-request-id="${escapeHtml(request.id)}"
+          type="button"
+        >
+          Retirer
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderManagedProjectCard(project) {
+  const requests = getProjectRequestRecords(project.id);
+
+  return `
+    <article class="info-card project-card project-card-managed animate-rise">
+      <div class="card-topline">
+        <span class="eyebrow eyebrow-tight">${canManageProject(project) ? "Gestion projet" : "Projet"}</span>
+        <span>${escapeHtml(renderProjectStatusBadge(project))}</span>
+      </div>
+      <h3>${escapeHtml(project.title)}</h3>
+      <p>${escapeHtml(project.description || "Description à compléter.")}</p>
+      ${
+        project.requiredMaterials
+          ? `<p class="session-notes"><strong>Matériel nécessaire :</strong> ${escapeHtml(
+              project.requiredMaterials,
+            )}</p>`
+          : ""
+      }
+      <p class="project-owner-line">Projet proposé par <strong>${escapeHtml(project.ownerLabel)}</strong></p>
+      <div class="session-meta project-meta-grid">
+        ${renderProjectMeta(project)}
+      </div>
+      <div class="admin-row-actions">
+        ${
+          canManageProject(project)
+            ? `
+              <button class="button button-ghost button-small" data-project-action="edit-project" data-project-id="${escapeHtml(project.id)}" type="button">
+                Modifier
+              </button>
+              <button class="button button-secondary button-small" data-project-action="toggle-project-open" data-project-id="${escapeHtml(project.id)}" type="button">
+                ${project.isOpen ? "Fermer les inscriptions" : "Ouvrir les inscriptions"}
+              </button>
+              <button class="button button-danger button-small" data-project-action="delete-project" data-project-id="${escapeHtml(project.id)}" type="button">
+                Supprimer
+              </button>
+            `
+            : ""
+        }
+      </div>
+      <div class="project-requests-panel">
+        <div class="admin-panel-head">
+          <h3>Demandes de participation</h3>
+          <span class="subtle-badge">${formatAdminCount(requests.length, "demande", "demandes")}</span>
+        </div>
+        ${
+          requests.length
+            ? `<div class="project-request-list">${requests
+                .map((request) => renderProjectRequestRow(request, project))
+                .join("")}</div>`
+            : `<div class="empty-state"><p>Aucune demande de participation pour le moment.</p></div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderProjectMembershipCard(membership, project) {
+  const statusLabel = formatProjectMembershipStatus(membership.status);
+
+  return `
+    <article class="info-card project-card animate-rise">
+      <div class="card-topline">
+        <span class="eyebrow eyebrow-tight">Ma participation</span>
+        <span>${escapeHtml(statusLabel)}</span>
+      </div>
+      <h3>${escapeHtml(project?.title || membership.projectTitle)}</h3>
+      <p>${escapeHtml(project?.description || "Le détail du projet sera visible ici dès son chargement.")}</p>
+      ${
+        project?.ownerLabel
+          ? `<p class="project-owner-line">Projet proposé par <strong>${escapeHtml(project.ownerLabel)}</strong></p>`
+          : ""
+      }
+      <div class="user-actions-row">
+        <button
+          class="button button-danger"
+          data-project-action="leave-membership"
+          data-membership-id="${escapeHtml(membership.id)}"
+          type="button"
+        >
+          ${membership.status === "accepted" ? "Quitter le projet" : "Retirer ma demande"}
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function renderProjectFormModal(project = null) {
+  const isEditing = Boolean(project);
+  const formTitle = isEditing ? "Modifier le projet" : "Nouveau projet";
+  const submitLabel = isEditing ? "Enregistrer les changements" : "Créer le projet";
+
+  return `
+    <div class="admin-modal-backdrop" data-project-action="close-modal">
+      <article class="admin-panel admin-user-modal project-modal" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
+        <div class="admin-panel-head admin-panel-head-start">
+          <div class="admin-completion-copy">
+            <span class="category-badge">Projet</span>
+            <h3 id="project-modal-title">${formTitle}</h3>
+            <p>Décrivez clairement l’idée, le matériel à prévoir et la taille d’équipe souhaitée.</p>
+          </div>
+          <button class="button button-ghost button-small" data-project-action="close-modal" type="button">
+            Fermer
+          </button>
+        </div>
+
+        <form class="signup-form admin-form" id="project-form">
+          <input id="project-form-id" name="id" type="hidden" value="${escapeHtml(project?.id ?? "")}" />
+          <label for="project-form-title">
+            Titre du projet
+            <input id="project-form-title" name="title" type="text" required value="${escapeHtml(
+              project?.title ?? "",
+            )}" />
+          </label>
+          <label for="project-form-description">
+            Description du projet
+            <textarea id="project-form-description" name="description" rows="5" required>${escapeHtml(
+              project?.description ?? "",
+            )}</textarea>
+          </label>
+          <label for="project-form-materials">
+            Matériel nécessaire
+            <textarea id="project-form-materials" name="required_materials" rows="4">${escapeHtml(
+              project?.requiredMaterials ?? "",
+            )}</textarea>
+          </label>
+          <div class="admin-field-grid">
+            <label for="project-form-price">
+              Estimation du prix d’achat
+              <input id="project-form-price" name="estimated_total_price" type="number" min="0" step="0.01" value="${escapeHtml(
+                project?.estimatedTotalPrice ?? "",
+              )}" />
+            </label>
+            <label for="project-form-duration">
+              Durée approximative
+              <input id="project-form-duration" name="estimated_duration" type="text" value="${escapeHtml(
+                project?.estimatedDuration ?? "",
+              )}" />
+            </label>
+          </div>
+          <div class="admin-field-grid">
+            <label for="project-form-min-people">
+              Nombre minimum de personnes
+              <input id="project-form-min-people" name="min_people" type="number" min="1" step="1" value="${escapeHtml(
+                project?.minPeople ?? "",
+              )}" />
+            </label>
+            <label for="project-form-max-people">
+              Nombre maximum de personnes
+              <input id="project-form-max-people" name="max_people" type="number" min="1" step="1" value="${escapeHtml(
+                project?.maxPeople ?? "",
+              )}" />
+            </label>
+          </div>
+          <label class="admin-checkbox-option" for="project-form-open">
+            <input id="project-form-open" name="is_open" type="checkbox" ${
+              project?.isOpen === false ? "" : "checked"
+            } />
+            <span>Projet ouvert aux nouvelles demandes</span>
+          </label>
+          <div class="admin-form-actions">
+            <button class="button button-primary" id="project-form-submit" type="submit">
+              ${submitLabel}
+            </button>
+          </div>
+          <p id="project-form-message" class="admin-feedback" aria-live="polite"></p>
+        </form>
+      </article>
+    </div>
+  `;
+}
+
+function enrichProjectRecordWithStats(projectRecord, statsRecord) {
+  if (!statsRecord) {
+    return projectRecord;
+  }
+
+  return {
+    ...projectRecord,
+    acceptedMembersCount: statsRecord.acceptedMembersCount,
+    pendingMembersCount: statsRecord.pendingMembersCount,
+    ownerLogin42: statsRecord.ownerLogin42 || projectRecord.ownerLogin42,
+    ownerDisplayName: statsRecord.ownerDisplayName || projectRecord.ownerDisplayName,
+    ownerEmail: statsRecord.ownerEmail || projectRecord.ownerEmail,
+    ownerLabel: statsRecord.ownerLabel || projectRecord.ownerLabel,
+    estimatedTotalPrice:
+      statsRecord.estimatedTotalPrice !== null
+        ? statsRecord.estimatedTotalPrice
+        : projectRecord.estimatedTotalPrice,
+    estimatedTotalPriceLabel:
+      statsRecord.estimatedTotalPriceLabel || projectRecord.estimatedTotalPriceLabel,
+    isFull: statsRecord.isFull,
+  };
+}
+
+function getProjectRecordById(projectId) {
+  return (
+    projectsState.proposedProjects.find((item) => String(item.id) === String(projectId)) ??
+    projectsState.myProjects.find((item) => String(item.id) === String(projectId)) ??
+    null
+  );
+}
+
+function renderProjectsViewState() {
+  const root = document.getElementById("projects-page-root");
+  const proposedGrid = document.getElementById("projects-proposed-grid");
+  const myGrid = document.getElementById("projects-my-grid");
+  const membershipsGrid = document.getElementById("projects-memberships-grid");
+  const modalButton = document.getElementById("projects-new-button");
+  const viewButtons = Array.from(document.querySelectorAll("[data-project-view]"));
+  const viewPanels = Array.from(document.querySelectorAll("[data-project-view-panel]"));
+
+  if (!root || !proposedGrid || !myGrid || !membershipsGrid) {
+    return;
+  }
+
+  viewButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.projectView === projectsState.currentView);
+  });
+
+  viewPanels.forEach((panel) => {
+    panel.classList.toggle(
+      "is-hidden",
+      panel.dataset.projectViewPanel !== projectsState.currentView,
+    );
+  });
+
+  if (!projectsState.session) {
+    const authCard = renderProjectsAuthGateCard(
+      "Connectez-vous pour voir les projets",
+      "Vous pourrez ensuite proposer un projet, rejoindre une équipe existante et gérer vos demandes de participation.",
+    );
+    proposedGrid.innerHTML = authCard;
+    myGrid.innerHTML = authCard;
+    membershipsGrid.innerHTML = authCard;
+    if (modalButton) {
+      modalButton.disabled = true;
+    }
+    return;
+  }
+
+  if (modalButton) {
+    modalButton.disabled = false;
+  }
+
+  proposedGrid.innerHTML = projectsState.proposedProjects.length
+    ? projectsState.proposedProjects.map(renderPublicProjectCard).join("")
+    : renderProjectsEmptyState(
+        "Aucun projet proposé pour le moment",
+        "Les prochains projets communautaires apparaîtront ici dès leur publication.",
+      );
+
+  const managedProjects =
+    projectsState.profile?.role === "admin"
+      ? projectsState.proposedProjects
+      : projectsState.myProjects;
+
+  myGrid.innerHTML = managedProjects.length
+    ? managedProjects.map(renderManagedProjectCard).join("")
+    : renderProjectsEmptyState(
+        "Aucun projet à gérer",
+        "Créez votre premier projet pour lancer une idée de fabrication dans le fablab.",
+      );
+
+  const currentUserId = projectsState.session.user.id;
+  const memberships = projectsState.myMemberships.filter((membership) => {
+    const project = getProjectRecordById(membership.projectId);
+    return String(project?.createdBy ?? "") !== String(currentUserId);
+  });
+
+  membershipsGrid.innerHTML = memberships.length
+    ? memberships
+        .map((membership) =>
+          renderProjectMembershipCard(membership, getProjectRecordById(membership.projectId)),
+        )
+        .join("")
+    : renderProjectsEmptyState(
+        "Aucune participation en cours",
+        "Vos demandes et vos projets rejoints apparaîtront ici automatiquement.",
+      );
+}
+
+function setProjectsView(nextView) {
+  projectsState.currentView = nextView === "mine" ? "mine" : "proposed";
+  renderProjectsViewState();
+}
+
+function closeProjectsModal() {
+  const modalRoot = document.getElementById("projects-modal-root");
+
+  if (modalRoot) {
+    modalRoot.innerHTML = "";
+  }
+}
+
+function openProjectsModal(projectId = null) {
+  const modalRoot = document.getElementById("projects-modal-root");
+
+  if (!modalRoot) {
+    return;
+  }
+
+  const project = projectId ? getProjectRecordById(projectId) : null;
+  modalRoot.innerHTML = renderProjectFormModal(project);
+}
+
+async function refreshProjectsPageData() {
+  const proposedGrid = document.getElementById("projects-proposed-grid");
+  const myGrid = document.getElementById("projects-my-grid");
+  const membershipsGrid = document.getElementById("projects-memberships-grid");
+  const messageNode = document.getElementById("projects-page-message");
+
+  if (proposedGrid) {
+    proposedGrid.innerHTML = renderProjectsLoadingState("Chargement des projets proposés...");
+  }
+  if (myGrid) {
+    myGrid.innerHTML = renderProjectsLoadingState("Chargement de vos projets...");
+  }
+  if (membershipsGrid) {
+    membershipsGrid.innerHTML = renderProjectsLoadingState("Chargement de vos participations...");
+  }
+  setAdminMessage(messageNode);
+
+  const { session, error } = await getCurrentSupabaseSession();
+  projectsState.session = session;
+
+  if (error) {
+    if (proposedGrid) {
+      proposedGrid.innerHTML = renderProjectsErrorState(
+        "Connexion impossible",
+        "Votre session n’a pas pu être vérifiée pour le moment.",
+      );
+    }
+    if (myGrid) {
+      myGrid.innerHTML = renderProjectsErrorState(
+        "Chargement impossible",
+        "Impossible de récupérer vos projets pour le moment.",
+      );
+    }
+    if (membershipsGrid) {
+      membershipsGrid.innerHTML = renderProjectsErrorState(
+        "Chargement impossible",
+        "Impossible de récupérer vos participations pour le moment.",
+      );
+    }
+    return;
+  }
+
+  if (!session) {
+    projectsState.profile = null;
+    projectsState.proposedProjects = [];
+    projectsState.myProjects = [];
+    projectsState.myMemberships = [];
+    projectsState.myRequests = [];
+    projectsState.allRequests = [];
+    renderProjectsViewState();
+    return;
+  }
+
+  const { data: profile } = await fetchUserProfileRecord(session.user.id);
+  projectsState.profile = profile ?? { role: "user" };
+  const isAdmin = projectsState.profile.role === "admin";
+
+  const [proposedResult, myProjectsResult, membershipsResult, requestsResult] = await Promise.all([
+    supabase.from("projects_with_stats").select("*").order("created_at", { ascending: false }),
+    isAdmin
+      ? supabase.from("projects_with_stats").select("*").order("created_at", { ascending: false })
+      : supabase.from("my_projects").select("*").order("created_at", { ascending: false }),
+    supabase.from("my_project_memberships").select("*").order("created_at", { ascending: false }),
+    isAdmin
+      ? supabase
+          .from("project_members_with_details")
+          .select("*")
+          .order("created_at", { ascending: false })
+      : supabase.from("my_project_requests").select("*").order("created_at", { ascending: false }),
+  ]);
+
+  const fallbackOwner = {
+    email: session.user.email ?? "",
+    displayName: profile?.display_name ?? "",
+    login42: profile?.login_42 ?? "",
+  };
+
+  projectsState.proposedProjects = proposedResult.error
+    ? []
+    : (proposedResult.data ?? []).map((item) => normalizeProjectRecord(item));
+
+  const projectStatsIndex = new Map(
+    projectsState.proposedProjects.map((item) => [String(item.id), item]),
+  );
+
+  const rawManagedProjects = myProjectsResult.error ? [] : myProjectsResult.data ?? [];
+  projectsState.myProjects = rawManagedProjects.map((item) =>
+    enrichProjectRecordWithStats(
+      normalizeProjectRecord(item, fallbackOwner),
+      projectStatsIndex.get(String(item.id)),
+    ),
+  );
+
+  projectsState.myMemberships = membershipsResult.error
+    ? []
+    : (membershipsResult.data ?? []).map(normalizeProjectMembershipRecord);
+
+  projectsState.myRequests = requestsResult.error
+    ? []
+    : (requestsResult.data ?? []).map(normalizeProjectMembershipRecord);
+
+  projectsState.allRequests = projectsState.myRequests;
+
+  renderProjectsViewState();
+
+  if (proposedResult.error) {
+    setAdminMessage(
+      messageNode,
+      "error",
+      proposedResult.error.message || "Impossible de charger les projets proposés.",
+    );
+    return;
+  }
+
+  if (myProjectsResult.error || membershipsResult.error || requestsResult.error) {
+    setAdminMessage(
+      messageNode,
+      "error",
+      myProjectsResult.error?.message ||
+        membershipsResult.error?.message ||
+        requestsResult.error?.message ||
+        "Certaines données de projet n’ont pas pu être chargées complètement.",
+    );
+  }
+}
+
+async function joinProject(projectId, button) {
+  const messageNode = document.getElementById("projects-page-message");
+  const project = getProjectRecordById(projectId);
+
+  if (!projectsState.session || !project) {
+    return;
+  }
+
+  if (!project.isOpen) {
+    setAdminMessage(messageNode, "error", "Ce projet n’accepte plus de nouvelles demandes.");
+    return;
+  }
+
+  if (project.isFull) {
+    setAdminMessage(messageNode, "error", "Cette équipe est déjà complète.");
+    return;
+  }
+
+  if (getProjectMembershipRecord(project.id)) {
+    setAdminMessage(
+      messageNode,
+      "error",
+      "Vous avez déjà une demande ou une participation liée à ce projet.",
+    );
+    return;
+  }
+
+  button.disabled = true;
+  setAdminMessage(messageNode);
+
+  const { error } = await supabase.from("project_members").insert([
+    {
+      project_id: project.id,
+      user_id: projectsState.session.user.id,
+      status: "pending",
+    },
+  ]);
+
+  if (error) {
+    setAdminMessage(
+      messageNode,
+      "error",
+      error.message || "Impossible d’envoyer votre demande de participation.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  setAdminMessage(messageNode, "success", "Demande envoyée.");
+  await refreshProjectsPageData();
+}
+
+async function leaveProjectMembership(membershipId, button) {
+  const messageNode = document.getElementById("projects-page-message");
+
+  if (!projectsState.session) {
+    return;
+  }
+
+  button.disabled = true;
+  setAdminMessage(messageNode);
+
+  const { error } = await supabase
+    .from("project_members")
+    .delete()
+    .eq("id", membershipId)
+    .eq("user_id", projectsState.session.user.id);
+
+  if (error) {
+    setAdminMessage(
+      messageNode,
+      "error",
+      error.message || "Impossible de retirer cette participation pour le moment.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  setAdminMessage(messageNode, "success", "Participation retirée.");
+  await refreshProjectsPageData();
+}
+
+async function reviewProjectRequest(requestId, nextStatus, button) {
+  const messageNode = document.getElementById("projects-page-message");
+  const request = projectsState.allRequests.find((item) => String(item.id) === String(requestId));
+  const project = getProjectRecordById(request?.projectId);
+
+  if (!request || !project || !canManageProject(project)) {
+    return;
+  }
+
+  if (nextStatus === "accepted" && project.isFull && request.status !== "accepted") {
+    setAdminMessage(
+      messageNode,
+      "error",
+      "Cette équipe est déjà complète. Augmentez le nombre maximal de participants avant d’accepter une nouvelle demande.",
+    );
+    return;
+  }
+
+  button.disabled = true;
+  setAdminMessage(messageNode);
+
+  const { error } = await supabase
+    .from("project_members")
+    .update({ status: nextStatus })
+    .eq("id", requestId);
+
+  if (error) {
+    setAdminMessage(
+      messageNode,
+      "error",
+      error.message || "Impossible de mettre à jour cette demande.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  setAdminMessage(
+    messageNode,
+    "success",
+    nextStatus === "accepted" ? "Demande acceptée." : "Demande refusée.",
+  );
+  await refreshProjectsPageData();
+}
+
+async function removeProjectRequest(requestId, button) {
+  const messageNode = document.getElementById("projects-page-message");
+  const request = projectsState.allRequests.find((item) => String(item.id) === String(requestId));
+  const project = getProjectRecordById(request?.projectId);
+
+  if (!request || !project || !canManageProject(project)) {
+    return;
+  }
+
+  if (!window.confirm("Retirer définitivement cette demande de participation ?")) {
+    return;
+  }
+
+  button.disabled = true;
+  setAdminMessage(messageNode);
+
+  const { error } = await supabase.from("project_members").delete().eq("id", requestId);
+
+  if (error) {
+    setAdminMessage(
+      messageNode,
+      "error",
+      error.message || "Impossible de retirer cette demande.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  setAdminMessage(messageNode, "success", "Demande retirée.");
+  await refreshProjectsPageData();
+}
+
+async function toggleProjectOpenState(projectId, button) {
+  const messageNode = document.getElementById("projects-page-message");
+  const project = getProjectRecordById(projectId);
+
+  if (!project || !canManageProject(project)) {
+    return;
+  }
+
+  button.disabled = true;
+  setAdminMessage(messageNode);
+
+  const { error } = await supabase
+    .from("projects")
+    .update({ is_open: !project.isOpen })
+    .eq("id", projectId);
+
+  if (error) {
+    setAdminMessage(
+      messageNode,
+      "error",
+      error.message || "Impossible de modifier l’ouverture de ce projet.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  setAdminMessage(
+    messageNode,
+    "success",
+    project.isOpen ? "Les inscriptions du projet sont maintenant fermées." : "Le projet est de nouveau ouvert.",
+  );
+  await refreshProjectsPageData();
+}
+
+async function deleteProject(projectId, button) {
+  const messageNode = document.getElementById("projects-page-message");
+  const project = getProjectRecordById(projectId);
+
+  if (!project || !canManageProject(project)) {
+    return;
+  }
+
+  if (!window.confirm(`Supprimer le projet « ${project.title} » ?`)) {
+    return;
+  }
+
+  button.disabled = true;
+  setAdminMessage(messageNode);
+
+  const { error } = await supabase.from("projects").delete().eq("id", projectId);
+
+  if (error) {
+    setAdminMessage(
+      messageNode,
+      "error",
+      error.message || "Impossible de supprimer ce projet.",
+    );
+    button.disabled = false;
+    return;
+  }
+
+  setAdminMessage(messageNode, "success", "Projet supprimé.");
+  await refreshProjectsPageData();
+}
+
+async function saveProjectForm(formNode) {
+  const messageNode = document.getElementById("projects-page-message");
+  const formMessageNode = document.getElementById("project-form-message");
+  const submitButton = document.getElementById("project-form-submit");
+  const formData = new FormData(formNode);
+  const projectId = String(formData.get("id") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const requiredMaterials = normalizeOptionalString(formData.get("required_materials"));
+  const estimatedTotalPrice = normalizeOptionalNumber(formData.get("estimated_total_price"));
+  const minPeople = normalizeOptionalNumber(formData.get("min_people"));
+  const maxPeople = normalizeOptionalNumber(formData.get("max_people"));
+  const estimatedDuration = normalizeOptionalString(formData.get("estimated_duration"));
+  const isOpen = formData.get("is_open") === "on";
+
+  if (!projectsState.session?.user?.id) {
+    setAdminMessage(formMessageNode, "error", "Vous devez être connecté pour enregistrer un projet.");
+    return;
+  }
+
+  if (!title || !description) {
+    setAdminMessage(formMessageNode, "error", "Renseignez au minimum un titre et une description.");
+    return;
+  }
+
+  if (minPeople !== null && maxPeople !== null && minPeople > maxPeople) {
+    setAdminMessage(
+      formMessageNode,
+      "error",
+      "Le nombre minimum de personnes ne peut pas dépasser le nombre maximum.",
+    );
+    return;
+  }
+
+  const payload = {
+    title,
+    description,
+    required_materials: requiredMaterials,
+    estimated_total_price: estimatedTotalPrice,
+    min_people: minPeople,
+    max_people: maxPeople,
+    estimated_duration: estimatedDuration,
+    is_open: isOpen,
+  };
+
+  submitButton.disabled = true;
+  setAdminMessage(formMessageNode);
+
+  const query = projectId
+    ? supabase.from("projects").update(payload).eq("id", projectId)
+    : supabase
+        .from("projects")
+        .insert([{ ...payload, created_by: projectsState.session.user.id }]);
+
+  const { error } = await query;
+
+  if (error) {
+    setAdminMessage(
+      formMessageNode,
+      "error",
+      error.message || "Impossible d’enregistrer ce projet.",
+    );
+    submitButton.disabled = false;
+    return;
+  }
+
+  closeProjectsModal();
+  setAdminMessage(
+    messageNode,
+    "success",
+    projectId ? "Projet mis à jour." : "Projet créé.",
+  );
+  await refreshProjectsPageData();
+  setProjectsView("mine");
+}
+
+async function hydrateProjectsPage() {
+  if (page !== "projects") {
+    return;
+  }
+
+  const root = document.getElementById("projects-page-root");
+  const modalRoot = document.getElementById("projects-modal-root");
+
+  if (!root || !modalRoot) {
+    return;
+  }
+
+  root.addEventListener("click", async (event) => {
+    const viewButton = event.target.closest("[data-project-view]");
+    if (viewButton) {
+      setProjectsView(viewButton.dataset.projectView);
+      return;
+    }
+
+    const targetViewButton = event.target.closest("[data-project-view-target]");
+    if (targetViewButton) {
+      setProjectsView(targetViewButton.dataset.projectViewTarget);
+      return;
+    }
+
+    const newProjectButton = event.target.closest("#projects-new-button");
+    if (newProjectButton) {
+      openProjectsModal();
+      return;
+    }
+
+    const actionButton = event.target.closest("[data-project-action]");
+    if (!actionButton) {
+      return;
+    }
+
+    const action = actionButton.dataset.projectAction;
+
+    if (action === "join") {
+      await joinProject(actionButton.dataset.projectId, actionButton);
+      return;
+    }
+
+    if (action === "leave-membership") {
+      await leaveProjectMembership(actionButton.dataset.membershipId, actionButton);
+      return;
+    }
+
+    if (action === "edit-project") {
+      openProjectsModal(actionButton.dataset.projectId);
+      return;
+    }
+
+    if (action === "delete-project") {
+      await deleteProject(actionButton.dataset.projectId, actionButton);
+      return;
+    }
+
+    if (action === "toggle-project-open") {
+      await toggleProjectOpenState(actionButton.dataset.projectId, actionButton);
+      return;
+    }
+
+    if (action === "accept-request") {
+      await reviewProjectRequest(actionButton.dataset.requestId, "accepted", actionButton);
+      return;
+    }
+
+    if (action === "reject-request") {
+      await reviewProjectRequest(actionButton.dataset.requestId, "rejected", actionButton);
+      return;
+    }
+
+    if (action === "remove-request") {
+      await removeProjectRequest(actionButton.dataset.requestId, actionButton);
+    }
+  });
+
+  modalRoot.addEventListener("click", (event) => {
+    const closeButton = event.target.closest('[data-project-action="close-modal"]');
+    if (closeButton) {
+      closeProjectsModal();
+      return;
+    }
+
+    const backdrop = event.target.closest(".admin-modal-backdrop");
+    if (backdrop && event.target === backdrop) {
+      closeProjectsModal();
+    }
+  });
+
+  modalRoot.addEventListener("submit", async (event) => {
+    const formNode = event.target.closest("#project-form");
+
+    if (!formNode) {
+      return;
+    }
+
+    event.preventDefault();
+    await saveProjectForm(formNode);
+  });
+
+  await refreshProjectsPageData();
 }
 
 async function getCurrentSupabaseSession() {

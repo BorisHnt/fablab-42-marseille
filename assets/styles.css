@@ -623,6 +623,16 @@ p {
   display: grid;
 }
 
+.projects-view-stack,
+.projects-header-row,
+.project-cta-stack,
+.project-request-list,
+.project-requests-panel,
+.project-meta-grid {
+  display: grid;
+  gap: 1rem;
+}
+
 .admin-subnav {
   display: flex;
   flex-wrap: wrap;
@@ -838,6 +848,36 @@ p {
 .admin-user-card,
 .admin-completion-card {
   gap: 0.9rem;
+}
+
+.project-card {
+  gap: 1rem;
+}
+
+.project-owner-line {
+  margin: 0;
+  color: rgba(31, 35, 37, 0.78);
+}
+
+.project-meta-grid {
+  gap: 0.65rem;
+}
+
+.project-request-row {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem 1.05rem;
+  border-radius: 22px;
+  border: 1px solid rgba(31, 35, 37, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.projects-memberships-section {
+  margin-top: 1rem;
+}
+
+.project-modal {
+  width: min(100%, 56rem);
 }
 
 .admin-user-role-row {
@@ -1452,6 +1492,16 @@ tr:last-child td {
     grid-template-columns: minmax(0, 1.15fr) auto;
     align-items: center;
     gap: 1.5rem;
+  }
+
+  .projects-header-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .project-request-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
   }
 
   .user-hero-grid {
