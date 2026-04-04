@@ -819,6 +819,10 @@ p {
   line-height: 1.55;
 }
 
+.admin-multiline-text {
+  white-space: pre-line;
+}
+
 .admin-badge-list {
   display: flex;
   flex-wrap: wrap;

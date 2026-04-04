@@ -177,9 +177,6 @@ function renderShell() {
         Un atelier pour apprendre, fabriquer et partager des projets concrets.
       </p>
     </div>
-    <div class="footer-links" id="site-footer-links">
-      ${renderFooterLinks()}
-    </div>
   `;
 }
 
@@ -203,20 +200,6 @@ function renderNavLinks(activeKey, role = "user") {
       `,
     )
     .join("");
-}
-
-function renderFooterLinks(role = "user") {
-  const labels = ["Projets", "Modules", "Sessions", "Événements"];
-
-  if (role === "moderator" || role === "admin") {
-    labels.push("Modération");
-  }
-
-  if (role === "admin") {
-    labels.push("Admin");
-  }
-
-  return labels.map((label) => `<span>${label}</span>`).join("");
 }
 
 function renderPage() {
@@ -3970,7 +3953,7 @@ function renderNeededEquipmentAdminList(items) {
             <strong>${escapeHtml(item.itemName)}</strong>
             ${
               item.note
-                ? `<div class="admin-cell-meta">${escapeHtml(item.note)}</div>`
+                ? `<div class="admin-cell-meta admin-multiline-text">${escapeHtml(item.note)}</div>`
                 : ""
             }
           </td>
@@ -9036,7 +9019,6 @@ async function hydrateSessionsPage() {
 async function hydrateAuthNavigation() {
   const authLink = document.getElementById("nav-auth-link");
   const navLinks = document.getElementById("site-nav-links");
-  const footerLinks = document.getElementById("site-footer-links");
   const activeKey = pageParent[page] ?? page;
 
   if (!authLink) {
@@ -9049,9 +9031,6 @@ async function hydrateAuthNavigation() {
     if (navLinks) {
       navLinks.innerHTML = renderNavLinks(activeKey, "user");
     }
-    if (footerLinks) {
-      footerLinks.innerHTML = renderFooterLinks("user");
-    }
     authLink.href = routeMap.login;
     authLink.textContent = "Connexion";
     return;
@@ -9062,9 +9041,6 @@ async function hydrateAuthNavigation() {
 
   if (navLinks) {
     navLinks.innerHTML = renderNavLinks(activeKey, role);
-  }
-  if (footerLinks) {
-    footerLinks.innerHTML = renderFooterLinks(role);
   }
 
   authLink.href = routeMap.account;
