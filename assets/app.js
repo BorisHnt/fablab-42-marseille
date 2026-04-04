@@ -7312,7 +7312,7 @@ function renderPublicProjectCard(project) {
       <p>${escapeHtml(project.description || "Description à compléter.")}</p>
       ${
         project.requiredMaterials
-          ? `<p class="session-notes"><strong>Matériel nécessaire :</strong> ${escapeHtml(
+          ? `<p class="session-notes"><strong>Matériel nécessaire :</strong><br />${escapeHtmlWithLineBreaks(
               project.requiredMaterials,
             )}</p>`
           : ""
@@ -7396,7 +7396,7 @@ function renderManagedProjectCard(project) {
       <p>${escapeHtml(project.description || "Description à compléter.")}</p>
       ${
         project.requiredMaterials
-          ? `<p class="session-notes"><strong>Matériel nécessaire :</strong> ${escapeHtml(
+          ? `<p class="session-notes"><strong>Matériel nécessaire :</strong><br />${escapeHtmlWithLineBreaks(
               project.requiredMaterials,
             )}</p>`
           : ""
