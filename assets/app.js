@@ -161,7 +161,6 @@ function renderShell() {
           ${renderNavLinks(activeKey)}
         </div>
         <div class="nav-actions">
-          <a class="button button-secondary nav-cta" href="${routeMap.sessions}">Voir les sessions</a>
           <a class="button button-ghost nav-auth-link" id="nav-auth-link" href="${routeMap.login}">
             Connexion
           </a>
